@@ -20,6 +20,7 @@ enum ADVEncryptionType {
     E2EE = 0;
     HOSTED = 1;
 }
+
 message ADVKeyIndexList {
     optional uint32 rawId = 1;
     optional uint64 timestamp = 2;
