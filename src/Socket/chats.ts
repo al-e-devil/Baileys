@@ -908,8 +908,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 					creds: authState.creds,
 					keyStore: authState.keys,
 					logger,
-					options: config.options,
-					getMessage: config.getMessage,
+					options: config.options
 				}
 			)
 		])

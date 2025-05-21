@@ -1,11 +1,11 @@
 import { AxiosRequestConfig } from 'axios'
-import type { Logger } from 'pino'
+import { ILogger } from './logger'
 import { proto } from '../../WAProto'
-import { AuthenticationCreds, BaileysEventEmitter, CacheStore, Chat, GroupMetadata, ParticipantAction, RequestJoinAction, RequestJoinMethod, SignalKeyStoreWithTransaction, SocketConfig, WAMessageStubType } from '../Types'
+import { AuthenticationCreds, BaileysEventEmitter, CacheStore, Chat, GroupMetadata, ParticipantAction, RequestJoinAction, RequestJoinMethod, SignalKeyStoreWithTransaction, WAMessageStubType } from '../Types'
 import { getContentType, normalizeMessageContent } from '../Utils/messages'
 import { areJidsSameUser, isJidBroadcast, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
 import { aesDecryptGCM, hmacSign } from './crypto'
-import { getKeyAuthor, toNumber } from './generics'
+import { toNumber } from './generics'
 import { downloadAndProcessHistorySyncNotification } from './history'
 
 type ProcessMessageContext = {
@@ -14,8 +14,7 @@ type ProcessMessageContext = {
 	creds: AuthenticationCreds
 	keyStore: SignalKeyStoreWithTransaction
 	ev: BaileysEventEmitter
-	getMessage: SocketConfig['getMessage']
-	logger?: Logger
+	logger?: ILogger
 	options: AxiosRequestConfig<{}>
 }
 
@@ -158,8 +157,7 @@ const processMessage = async (
 		creds,
 		keyStore,
 		logger,
-		options,
-		getMessage
+		options
 	}: ProcessMessageContext
 ) => {
 	const meId = creds.me!.id
@@ -169,6 +167,7 @@ const processMessage = async (
 	const isRealMsg = isRealMessage(message, meId)
 
 	if (isRealMsg) {
+		chat.messages = [{ message }]
 		chat.conversationTimestamp = toNumber(message.messageTimestamp)
 		// only increment unread count if not CIPHERTEXT and from another person
 		if (shouldIncrementChatUnread(message)) {
@@ -416,52 +415,6 @@ const processMessage = async (
 				break
 		}
 
-	} else if (content?.pollUpdateMessage) {
-		const creationMsgKey = content.pollUpdateMessage.pollCreationMessageKey!
-		// we need to fetch the poll creation message to get the poll enc key
-		const pollMsg = await getMessage(creationMsgKey)
-		if (pollMsg) {
-			const meIdNormalised = jidNormalizedUser(meId)
-			const pollCreatorJid = getKeyAuthor(creationMsgKey, meIdNormalised)
-			const voterJid = getKeyAuthor(message.key, meIdNormalised)
-			const pollEncKey = pollMsg.messageContextInfo?.messageSecret!
-
-			try {
-				const voteMsg = decryptPollVote(
-					content.pollUpdateMessage.vote!,
-					{
-						pollEncKey,
-						pollCreatorJid,
-						pollMsgId: creationMsgKey.id!,
-						voterJid,
-					}
-				)
-				ev.emit('messages.update', [
-					{
-						key: creationMsgKey,
-						update: {
-							pollUpdates: [
-								{
-									pollUpdateMessageKey: message.key,
-									vote: voteMsg,
-									senderTimestampMs: (content.pollUpdateMessage.senderTimestampMs! as Long).toNumber(),
-								}
-							]
-						}
-					}
-				])
-			} catch (err) {
-				logger?.warn(
-					{ err, creationMsgKey },
-					'failed to decrypt poll vote'
-				)
-			}
-		} else {
-			logger?.warn(
-				{ creationMsgKey },
-				'poll creation message not found, cannot decrypt update'
-			)
-		}
 	}
 
 	if (Object.keys(chat).length > 1) {
