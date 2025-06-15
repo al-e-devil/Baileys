@@ -380,6 +380,7 @@ export const extractCommunityMetadata = (result: BinaryNode) => {
 	const memberAddMode = getBinaryNodeChildString(community, 'member_add_mode') === 'all_member_add'
 	const metadata: GroupMetadata = {
 		id: communityId,
+		addressingMode: community.attrs.addressing_mode as 'pn' | 'lid',
 		subject: community.attrs.subject,
 		subjectOwner: community.attrs.s_o,
 		subjectTime: +community.attrs.s_t,
