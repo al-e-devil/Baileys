@@ -1,4 +1,3 @@
-
 import * as constants from './constants'
 import { FullJid, jidDecode } from './jid-utils'
 import type { BinaryNode, BinaryNodeCodingOptions } from './types'
@@ -33,6 +32,7 @@ const encodeBinaryNodeInner = (
 			buffer.push(b)
 		}
 	}
+
 	const pushInt16 = (value: number) => {
 		pushBytes([(value >> 8) & 0xff, value & 0xff])
 	}
@@ -148,8 +148,8 @@ const encodeBinaryNodeInner = (
 		}
 	}
 
-	const isNibble = (str: string) => {
-		if (str.length > TAGS.PACKED_MAX) {
+	const isNibble = (str?: string) => {
+		if (!str || str.length > TAGS.PACKED_MAX) {
 			return false
 		}
 
@@ -163,14 +163,14 @@ const encodeBinaryNodeInner = (
 		return true
 	}
 
-	const isHex = (str: string) => {
-		if (str.length > TAGS.PACKED_MAX) {
+	const isHex = (str?: string) => {
+		if (!str || str.length > TAGS.PACKED_MAX) {
 			return false
 		}
 
 		for (const char of str) {
 			const isInNibbleRange = char >= '0' && char <= '9'
-			if (!isInNibbleRange && !(char >= 'A' && char <= 'F') && !(char >= 'a' && char <= 'f')) {
+			if (!isInNibbleRange && !(char >= 'A' && char <= 'F')) {
 				return false
 			}
 		}
@@ -178,7 +178,12 @@ const encodeBinaryNodeInner = (
 		return true
 	}
 
-	const writeString = (str: string) => {
+	const writeString = (str?: string) => {
+		if (str === undefined || str === null) {
+			pushByte(TAGS.LIST_EMPTY)
+			return
+		}
+
 		const tokenIndex = TOKEN_MAP[str]
 		if (tokenIndex) {
 			if (typeof tokenIndex.dict === 'number') {
@@ -211,7 +216,11 @@ const encodeBinaryNodeInner = (
 		}
 	}
 
-	const validAttributes = Object.keys(attrs).filter(k => (
+	if (!tag) {
+		throw new Error('Invalid node: tag cannot be undefined')
+	}
+
+	const validAttributes = Object.keys(attrs || {}).filter(k => (
 		typeof attrs[k] !== 'undefined' && attrs[k] !== null
 	))
 
@@ -231,8 +240,10 @@ const encodeBinaryNodeInner = (
 		writeByteLength(content.length)
 		pushBytes(content)
 	} else if (Array.isArray(content)) {
-		writeListStart(content.length)
-		for (const item of content) {
+		const validContent = content.filter(item => item && (item.tag || Buffer.isBuffer(item) || item instanceof Uint8Array || typeof item === 'string')
+		)
+		writeListStart(validContent.length)
+		for (const item of validContent) {
 			encodeBinaryNodeInner(item, opts, buffer)
 		}
 	} else if (typeof content === 'undefined') {
