@@ -8,7 +8,6 @@ import {
 	DEF_TAG_PREFIX,
 	INITIAL_PREKEY_COUNT,
 	MIN_PREKEY_COUNT,
-	MOBILE_NOISE_HEADER,
 	NOISE_WA_HEADER
 } from '../Defaults'
 import { DisconnectReason, SocketConfig } from '../Types'
@@ -64,13 +63,7 @@ export const makeSocket = (config: SocketConfig) => {
 		makeSignalRepository,
 	} = config
 
-	let url = typeof waWebSocketUrl === 'string' ? new URL(waWebSocketUrl) : waWebSocketUrl
-
-	config.mobile = config.mobile || url.protocol === 'tcp:'
-
-	if (config.mobile || url.protocol === 'tcp:') {
-		throw new Boom('Mobile API is not supported anymore', { statusCode: DisconnectReason.loggedOut })
-	}
+	const url = typeof waWebSocketUrl === 'string' ? new URL(waWebSocketUrl) : waWebSocketUrl
 
 	if (url.protocol === 'wss' && authState?.creds?.routingInfo) {
 		url.searchParams.append('ED', authState.creds.routingInfo.toString('base64url'))
@@ -86,7 +79,7 @@ export const makeSocket = (config: SocketConfig) => {
 	/** WA noise protocol wrapper */
 	const noise = makeNoiseHandler({
 		keyPair: ephemeralKeyPair,
-		NOISE_HEADER: config.mobile ? MOBILE_NOISE_HEADER : NOISE_WA_HEADER,
+		NOISE_HEADER: NOISE_WA_HEADER,
 		logger,
 		routingInfo: authState?.creds?.routingInfo
 	})
@@ -241,7 +234,7 @@ export const makeSocket = (config: SocketConfig) => {
 
 		logger.trace({ handshake }, 'handshake recv from WA')
 
-		const keyEnc = await noise.processHandshake(handshake, creds.noiseKey)
+		const keyEnc = noise.processHandshake(handshake, creds.noiseKey)
 
 		let node: proto.IClientPayload
 
@@ -368,9 +361,6 @@ export const makeSocket = (config: SocketConfig) => {
 
 		if (!ws.isClosed && !ws.isClosing) {
 			try {
-				ws.on('error', (err) => {
-					logger.error({ err: err })
-				})
 				ws.close()
 			} catch { }
 		}
@@ -672,9 +662,6 @@ export const makeSocket = (config: SocketConfig) => {
 		end(new Boom('Connection Failure', { statusCode: reason, data: node.attrs }))
 	})
 
-	ws.on('CB:ib,,downgrade_webclient', () => {
-		end(new Boom('Multi-device beta not joined', { statusCode: DisconnectReason.multideviceMismatch }))
-	})
 
 	ws.on('CB:ib,,offline_preview', (node: BinaryNode) => {
 		logger.info('offline preview received', JSON.stringify(node))

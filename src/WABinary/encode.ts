@@ -1,3 +1,4 @@
+
 import * as constants from './constants'
 import { FullJid, jidDecode } from './jid-utils'
 import type { BinaryNode, BinaryNodeCodingOptions } from './types'
