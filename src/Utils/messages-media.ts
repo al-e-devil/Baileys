@@ -157,18 +157,17 @@ export const mediaMessageSHA256B64 = (message: WAMessageContent) => {
 }
 
 export async function getAudioDuration(buffer: Buffer | string | Readable) {
+	const musicMetadata = await import('music-metadata')
 	let metadata: IAudioMetadata
+	const options = {
+		duration: true
+	}
 	if (Buffer.isBuffer(buffer)) {
-		metadata = await parseBuffer(buffer, undefined, { duration: true })
+		metadata = await musicMetadata.parseBuffer(buffer, undefined, options)
 	} else if (typeof buffer === 'string') {
-		const rStream = createReadStream(buffer)
-		try {
-			metadata = await parseStream(rStream, undefined, { duration: true })
-		} finally {
-			rStream.destroy()
-		}
+		metadata = await musicMetadata.parseFile(buffer, options)
 	} else {
-		metadata = await parseStream(buffer, undefined, { duration: true })
+		metadata = await musicMetadata.parseStream(buffer, undefined, options)
 	}
 
 	return metadata.format.duration
@@ -480,7 +479,7 @@ export type MediaDownloadOptions = {
 
 export const getUrlFromDirectPath = (directPath: string) => `https://${DEF_HOST}${directPath}`
 
-export const downloadContentFromMessage = async(
+export const downloadContentFromMessage = async (
 	{ mediaKey, directPath, url }: DownloadableMessage,
 	type: MediaType,
 	opts: MediaDownloadOptions = {}
@@ -710,7 +709,7 @@ const getMediaRetryKey = (mediaKey: Buffer | Uint8Array) => {
 /**
  * Generate a binary node that will request the phone to re-upload the media & return the newly uploaded URL
  */
-export const encryptMediaRetryRequest = async(
+export const encryptMediaRetryRequest = async (
 	key: proto.IMessageKey,
 	mediaKey: Buffer | Uint8Array,
 	meId: string
@@ -789,7 +788,7 @@ export const decodeMediaRetryNode = (node: BinaryNode) => {
 	return event
 }
 
-export const decryptMediaRetryData = async(
+export const decryptMediaRetryData = async (
 	{ ciphertext, iv }: { ciphertext: Uint8Array, iv: Uint8Array },
 	mediaKey: Uint8Array,
 	msgId: string

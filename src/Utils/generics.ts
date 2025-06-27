@@ -277,7 +277,7 @@ export const fetchLatestBaileysVersion = async (options: AxiosRequestConfig<{}> 
  * Use to ensure your WA connection is always on the latest version
  */
 
-export const fetchLatestWaWebVersion = async(options: AxiosRequestConfig<{}>) => {
+export const fetchLatestWaWebVersion = async (options: AxiosRequestConfig<{}>) => {
 	try {
 		const { data } = await axios.get(
 			'https://web.whatsapp.com/sw.js',
@@ -290,7 +290,7 @@ export const fetchLatestWaWebVersion = async(options: AxiosRequestConfig<{}>) =>
 		const regex = /\\?"client_revision\\?":\s*(\d+)/
 		const match = data.match(regex)
 
-		if(!match?.[1]) {
+		if (!match?.[1]) {
 			return {
 				version: baileysVersion as WAVersion,
 				isLatest: false,
@@ -306,7 +306,7 @@ export const fetchLatestWaWebVersion = async(options: AxiosRequestConfig<{}>) =>
 			version: [2, 3000, +clientRevision] as WAVersion,
 			isLatest: true
 		}
-	} catch(error) {
+	} catch (error) {
 		return {
 			version: baileysVersion as WAVersion,
 			isLatest: false,
