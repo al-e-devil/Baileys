@@ -1,10 +1,10 @@
 import { Boom } from '@hapi/boom'
+import { Logger } from 'pino'
 import { proto } from '../../WAProto'
 import { NOISE_MODE, WA_CERT_DETAILS } from '../Defaults'
 import { KeyPair } from '../Types'
 import { BinaryNode, decodeBinaryNode } from '../WABinary'
 import { aesDecryptGCM, aesEncryptGCM, Curve, hkdf, sha256 } from './crypto'
-import { ILogger } from './logger'
 
 const generateIV = (counter: number) => {
 	const iv = new ArrayBuffer(12)
@@ -16,12 +16,14 @@ const generateIV = (counter: number) => {
 export const makeNoiseHandler = ({
 	keyPair: { private: privateKey, public: publicKey },
 	NOISE_HEADER,
+	mobile,
 	logger,
 	routingInfo
 }: {
 	keyPair: KeyPair
 	NOISE_HEADER: Uint8Array
-	logger: ILogger
+	mobile: boolean
+	logger: Logger
 	routingInfo?: Buffer | undefined
 }) => {
 	logger = logger.child({ class: 'ns' })
@@ -82,7 +84,7 @@ export const makeNoiseHandler = ({
 	}
 
 	const data = Buffer.from(NOISE_MODE)
-	let hash = data.byteLength === 32 ? data : sha256(data)
+	let hash = Buffer.from(data.byteLength === 32 ? data : sha256(data))
 	let salt = hash
 	let encKey = hash
 	let decKey = hash
@@ -111,12 +113,16 @@ export const makeNoiseHandler = ({
 
 			const certDecoded = decrypt(serverHello!.payload!)
 
-			const { intermediate: certIntermediate } = proto.CertChain.decode(certDecoded)
+			if (mobile) {
+				proto.CertChain.NoiseCertificate.decode(certDecoded)
+			} else {
+				const { intermediate: certIntermediate } = proto.CertChain.decode(certDecoded)
 
-			const { issuerSerial } = proto.CertChain.NoiseCertificate.Details.decode(certIntermediate!.details!)
+				const { issuerSerial } = proto.CertChain.NoiseCertificate.Details.decode(certIntermediate!.details!)
 
-			if (issuerSerial !== WA_CERT_DETAILS.SERIAL) {
-				throw new Boom('certification match failed', { statusCode: 400 })
+				if (issuerSerial !== WA_CERT_DETAILS.SERIAL) {
+					throw new Boom('certification match failed', { statusCode: 400 })
+				}
 			}
 
 			const keyEnc = encrypt(noiseKey.public)
@@ -177,11 +183,11 @@ export const makeNoiseHandler = ({
 				inBytes = inBytes.subarray(size + 3)
 
 				if (isFinished) {
-					const result = decrypt(frame)
+					const result = decrypt(frame as Uint8Array)
 					frame = await decodeBinaryNode(result)
 				}
 
-				logger.trace({ msg: (frame as BinaryNode)?.attrs?.id }, 'recv frame')
+				logger.trace({ msg: (frame as any)?.attrs?.id }, 'recv frame')
 
 				onFrame(frame)
 				size = getBytesSize()
