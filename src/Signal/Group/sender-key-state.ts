@@ -109,7 +109,7 @@ export class SenderKeyState {
 			return privateKey
 		}
 
-		return Buffer.from(privateKey)
+		return Buffer.from(privateKey || [])
 	}
 
 	public hasSenderMessageKey(iteration: number): boolean {
