@@ -57,24 +57,24 @@ export const makeNoiseHandler = ({
 		return result
 	}
 
-	const localHKDF = async (data: Uint8Array) => {
-		const key = await hkdf(Buffer.from(data), 64, { salt, info: '' })
+	const localHKDF = (data: Uint8Array) => {
+		const key = hkdf(Buffer.from(data), 64, { salt, info: '' })
 		return [key.subarray(0, 32), key.subarray(32)]
 	}
 
-	const mixIntoKey = async (data: Uint8Array) => {
-		const [write, read] = await localHKDF(data)
-		salt = Buffer.from(write.buffer)
-		encKey = Buffer.from(read.buffer)
-		decKey = Buffer.from(read.buffer)
-		readCounter = 0;
+	const mixIntoKey = (data: Uint8Array) => {
+		const [write, read] = localHKDF(data)
+		salt = write
+		encKey = read
+		decKey = read
+		readCounter = 0
 		writeCounter = 0
 	}
 
-	const finishInit = async () => {
-		const [write, read] = await localHKDF(new Uint8Array(0))
-		encKey = Buffer.from(write.buffer)
-		decKey = Buffer.from(read.buffer)
+	const finishInit = () => {
+		const [write, read] = localHKDF(new Uint8Array(0))
+		encKey = write
+		decKey = read
 		hash = Buffer.from([])
 		readCounter = 0
 		writeCounter = 0
