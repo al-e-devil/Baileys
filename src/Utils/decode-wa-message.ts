@@ -41,7 +41,7 @@ export function decodeMessageNode(
 
 	const msgId = stanza.attrs.id
 	const from = stanza.attrs.from
-	const participant: string | undefined = stanza.attrs.participant
+	const participant: string | undefined = stanza.attrs.participant_pn
 	const recipient: string | undefined = stanza.attrs.recipient
 
 	const isMe = (jid: string) => areJidsSameUser(jid, meId)
@@ -90,7 +90,7 @@ export function decodeMessageNode(
 		throw new Boom('Unknown message type', { data: stanza })
 	}
 
-	const fromMe = isJidNewsletter(from) ? !!stanza.attrs?.is_sender : (isLidUser(from) ? isMeLid : isMe)(stanza.attrs.participant || stanza.attrs.from)
+	const fromMe = isJidNewsletter(from) ? !!stanza.attrs?.is_sender : (isLidUser(from) ? isMeLid : isMe)(stanza.attrs.participant_pn || stanza.attrs.from)
 	const pushname = stanza.attrs.notify
 	console.log(stanza)
 
@@ -98,11 +98,7 @@ export function decodeMessageNode(
 		remoteJid: chatId,
 		fromMe,
 		id: msgId,
-		senderLid: stanza?.attrs?.sender_lid,
-		senderPn: stanza?.attrs?.sender_pn,
 		participant,
-		participantPn: stanza?.attrs?.participant_pn,
-		participantLid: stanza?.attrs?.participant_lid
 	}
 
 	const fullMessage: proto.IWebMessageInfo = {
