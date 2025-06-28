@@ -515,7 +515,7 @@ export const makeSocket = (config: SocketConfig) => {
 						{
 							tag: 'companion_platform_id',
 							attrs: {},
-							content: getPlatformId(browser[1])
+							content: String(getPlatformId(browser[1]))
 						},
 						{
 							tag: 'companion_platform_display',
