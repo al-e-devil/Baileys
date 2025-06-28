@@ -777,11 +777,21 @@ export const generateWAMessageContent = async (
 		if ('mentions' in message && !!message.mentions) {
 			interactiveMessage.contextInfo = { mentionedJid: message.mentions };
 		}
-		m = { interactiveMessage };
+		m = { interactiveMessage }
+
+		m.messageContextInfo = {
+            messageSecret: randomBytes(32)
+        } 
 	}
 
 	if ('viewOnce' in message && !!message.viewOnce) {
 		m = { viewOnceMessage: { message: m } }
+	}
+	if ('viewOnceV2' in message && !!message.viewOnceV2) {
+		m = { viewOnceMessageV2: { message: m } }
+	}
+	if ('viewOnceV2Extension' in message && !!message.viewOnceV2Extension) {
+		m = { viewOnceMessageV2Extension: { message: m } }
 	}
 
 	if ('mentions' in message && message.mentions?.length) {
@@ -791,6 +801,10 @@ export const generateWAMessageContent = async (
 	}
 
 	if ('edit' in message) {
+		m.messageContextInfo = {
+			messageSecret: randomBytes(32)
+		}
+
 		m = {
 			protocolMessage: {
 				key: message.edit,
