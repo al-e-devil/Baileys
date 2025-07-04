@@ -26,16 +26,16 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 	const sock = makeChatsSocket(config)
 	const { authState, ev, query, upsertMessage } = sock
 
-	const groupQuery = async (jid: string, type: 'get' | 'set', content: BinaryNode[]) => (
+	const groupQuery = async (jid: string, type: 'get' | 'set', content: BinaryNode[]) =>
 		query({
 			tag: 'iq',
 			attrs: {
 				type,
 				xmlns: 'w:g2',
-				to: jid,
+				to: jid
 			},
 			content
-		})
+		}
 	)
 
 	const groupMetadata = async (jid: string) => {
@@ -353,7 +353,7 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 	if (descChild) {
 		desc = getBinaryNodeChildString(descChild, 'body')
 		descId = descChild.attrs.id,
-		descOwner = descChild.attrs.participant_pn ? jidNormalizedUser(descChild.attrs.participant_pn) : undefined
+		descOwner = jidNormalizedUser(descChild.attrs.participant_pn || descChild.attrs.participant)
 		descTime = +descChild.attrs.t
 	}
 
@@ -368,7 +368,7 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 		subjectTime: +group.attrs.s_t,
 		size: getBinaryNodeChildren(group, 'participant').length,
 		creation: +group.attrs.creation,
-		owner: group.attrs.creator_pn ? jidNormalizedUser(group.attrs.creator_pn) : undefined,
+		owner: jidNormalizedUser(group.attrs.creator_pn || group.attrs.creator),
 		desc,
 		descId,
 		descOwner,

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package database;
+
+message user {
+    string name = 1;
+    string number = 2;
+    bool banned = 3;
+    int32 age = 4;
+    
+}
+message chat {
+    bool banned = 1;
+    bool welcome = 2;
+}
+
+message config {
+    bool autoRead = 1;
+}
+
+message collection {
+    map<string, user> users = 1;
+    map<string, chat> chats = 2;
+    map<string, config> settings = 3;
+}
