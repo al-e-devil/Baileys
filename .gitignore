@@ -21,3 +21,11 @@ TestData
 wa-logs.txt
 package-lock.json
 .vs
+
+# Ignore specific files and directories
+Example/Database/database.db
+Example/Database/database.db-shm
+Example/Database/database.db-wal
+Example/auth.db
+Example/auth.db-shm
+Example/auth.db-wal
