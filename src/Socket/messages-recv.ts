@@ -39,7 +39,6 @@ import {
 	getBinaryNodeChildren,
 	isJidGroup, isJidStatusBroadcast,
 	isJidUser,
-	jidDecode,
 	jidNormalizedUser,
 	S_WHATSAPP_NET
 } from '../WABinary'
@@ -606,10 +605,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		return data instanceof Buffer ? data : Buffer.from(data)
 	}
 
-	const willSendMessageAgain = async (id: string, participant: string) => {
+	const shouldRetry = (id: string, participant: string) => {
 		const key = `${id}:${participant}`
-		const retryCount = await msgRetryCache.get<number>(key) || 0
-		return retryCount < maxMsgRetryCount
+		const count = (msgRetryCache.get<number>(key) || 0) + 1
+		if (count >= maxMsgRetryCount) return false
+		msgRetryCache.set(key, count)
+		return true
 	}
 
 	const updateSendMessageAgainCount = async (id: string, participant: string) => {
@@ -629,7 +630,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		// if it's the primary jid sending the request
 		// just re-send the message to everyone
 		// prevents the first message decryption failure
-		const sendToAll = !jidDecode(participant)?.device
+		const sendToAll = !participant.includes(":")
 		await assertSessions([participant], true)
 
 		if (isJidGroup(remoteJid)) {
@@ -731,7 +732,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							// correctly set who is asking for the retry
 							key.participant = key.participant || attrs.from
 							const retryNode = getBinaryNodeChild(node, 'retry')
-							if (await willSendMessageAgain(ids[0], key.participant)) {
+							if (await shouldRetry(ids[0], key.participant)) {
 								if (key.fromMe) {
 									try {
 										logger.debug({ attrs, key }, 'recv retry request')
@@ -839,7 +840,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		try {
 			await Promise.all([
-				processingMutex.mutex(
+				await processingMutex.mutex(
 					async () => {
 						await decrypt()
 						// message failed to decrypt
