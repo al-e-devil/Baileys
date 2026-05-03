@@ -1,5 +1,7 @@
 import Database from 'better-sqlite3';
-import * as Proto from '../../proto/database';
+import * as Proto from '../../proto/database.js';
+
+
 import fs from 'fs';
 import path from 'path';
 
@@ -59,7 +61,7 @@ export class database {
                 this.c = 0;
                 if ((this.q.c.get() as any).c > 1000) this.q.p.run();
             }
-        } catch {}
+        } catch { }
     }
 
     public getMessage(id: string) {
@@ -182,4 +184,4 @@ export class database {
     }
 }
 
-export const db = new database('./src/Database/database.db');
+export const db = new database('./Example/Database/database.db');

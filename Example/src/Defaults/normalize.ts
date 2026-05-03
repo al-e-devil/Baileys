@@ -29,6 +29,7 @@ export async function Sms(sock: Auralix, m: any): Promise<MsgCtx | null> {
         m.isChat = m.from.endsWith("@s.whatsapp.net")
         m.sender = jidNormalizedUser(m.key.participant || m.key.remoteJid)
         m.number = m.sender.replace("@s.whatsapp.net", "")
+        m.isOwner = [config.owner.number, ...(config.mods || [])].includes(m.number) || m.isMe
 
         m.user = db.user(m.sender, m.pushName)
         if (m.isGroup) m.group = db.group(m.from)

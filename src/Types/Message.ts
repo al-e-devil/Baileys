@@ -155,6 +155,23 @@ type Cardsable = {
 	subtitle?: string
 }
 
+export type CarouselCard = {
+	title?: string
+	subtitle?: string
+	body?: string
+	caption?: string
+	footer?: string
+	image?: WAMediaUpload | { url: string } | { buffer: Buffer }
+	video?: WAMediaUpload | { url: string } | { buffer: Buffer }
+	product?: proto.Message.IProductMessage
+	templateId?: string
+	buttons?: proto.Message.InteractiveMessage.NativeFlowMessage.NativeFlowButton[]
+}
+
+type Carouselable = {
+	carousel?: CarouselCard[]
+}
+
 type Listable = {
 	/** Sections of the List */
 	sections?: proto.Message.ListMessage.ISection[]
@@ -204,6 +221,12 @@ export type AlbumMessageOptions = {
 	expectedImageCount?: number
 	/** Number of videos expected in the album */
 	expectedVideoCount?: number
+}
+
+export type PollResultInfo = {
+	name: string
+	votes: [string, number][]
+	messageSecret?: Uint8Array
 }
 
 type SharePhoneNumber = {
@@ -270,6 +293,12 @@ export type ButtonReplyInfo = {
 	displayText: string
 	id: string
 	index: number
+	text?: string
+	nativeFlow?: {
+		name: string
+		paramsJson: string
+		version: number
+	}
 }
 
 export type GroupInviteInfo = {
@@ -349,9 +378,10 @@ export type AnyRegularMessageContent = (
 		Shopable &
 		Cardsable &
 		Listable &
+		Carouselable &
 		Editable)
 	| AnyMediaMessageContent
-	| { event: EventMessageOptions }
+	| { event: EventMessageOptions | EventsInfo }
 	| ({
 		poll: PollMessageOptions
 	} & Mentionable &
@@ -378,7 +408,16 @@ export type AnyRegularMessageContent = (
 	| { react: proto.Message.IReactionMessage }
 	| {
 		buttonReply: ButtonReplyInfo
-		type: 'template' | 'plain'
+		type: 'template' | 'plain' | 'interactive'
+	}
+	| {
+		pollResult: PollResultInfo
+	}
+	| {
+		sharePhoneNumber: boolean
+	}
+	| {
+		requestPhoneNumber: boolean
 	}
 	| {
 		groupInvite: GroupInviteInfo
@@ -406,9 +445,6 @@ export type AnyRegularMessageContent = (
 	}
 	| {
 		requestPayment: RequestPaymentInfo
-	}
-	| {
-		event: EventsInfo
 	}
 	| {
 		order: OrderInfo

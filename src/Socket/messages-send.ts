@@ -1070,12 +1070,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				}
 
 				if (additionalNodes && additionalNodes.length > 0) {
-					; (stanza.content as BinaryNode[]).push(...additionalNodes)
-				}
-
-				if (additionalNodes && additionalNodes.length > 0) {
 					(stanza.content as BinaryNode[]).push(...additionalNodes)
-				} else if ((isJidGroup(jid) || isJidUser(jid) && ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'ephemeralMessage', 'templateMessage', 'interactiveMessage', 'buttonsMessage'].find(_ => message?.[_]))) {
+				} else if ((isJidGroup(jid) || (isPnUser(jid) || isLidUser(jid)) && ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'ephemeralMessage', 'templateMessage', 'interactiveMessage', 'buttonsMessage'].find(_ => (message as any)?.[_]))) {
 					(stanza.content as BinaryNode[]).push({
 						tag: "biz",
 						attrs: {},
@@ -1093,7 +1089,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 											name: "quick_reply"
 										},
 										content: undefined
-									},
+									}
 								]
 							}
 						]
@@ -1201,6 +1197,26 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		}
 
 		return 'text'
+	}
+
+	const getButtonType = (message: proto.IMessage) => {
+		if (message.buttonsMessage) return 'buttons'
+		if (message.buttonsResponseMessage) return 'buttons_response'
+		if (message.listMessage) return 'list'
+		if (message.listResponseMessage) return 'list_response'
+		if (message.interactiveMessage) return 'interactive'
+		if (message.interactiveResponseMessage) return 'interactive_response'
+		if (message.templateMessage) return 'template'
+		if (message.templateButtonReplyMessage) return 'template_button_reply'
+		return undefined
+	}
+
+	const getButtonArgs = (message: proto.IMessage): { [key: string]: string } => {
+		if (message.templateMessage || message.templateButtonReplyMessage) {
+			return { v: '2', type: 'text' }
+		}
+
+		return { type: 'method' }
 	}
 
 	const getMediaType = (message: proto.IMessage) => {

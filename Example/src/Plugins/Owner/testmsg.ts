@@ -17,7 +17,7 @@ export default {
                         imageMessage: await Baileys.prepareWAMessageMedia(
                             { image: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" } },
                             { upload: (sock as any).waUploadToServer }
-                        ).then(a => a.imageMessage)
+                        )
                     }),
                     nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
                         messageParamsJson: JSON.stringify({

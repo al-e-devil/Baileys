@@ -17,7 +17,7 @@ const start = async (retries = 0, pairing = true): Promise<void> => {
     const DEFAULT_CACHE_NAME = "open"
     const session = new Map<string, ReturnType<typeof Sock>>()
     const logger = pino({ level: config.log.level })
-    const { state, saveCreds } = await sqlite.AuthState('socket', 'Auth/auth.db', logger)
+    const { state, saveCreds } = await sqlite.AuthState('socket', 'Example/Auth/auth.db', logger)
     const { version } = await Baileys.fetchLatestBaileysVersion()
     const auralix = Sock({
         logger,
@@ -139,7 +139,10 @@ const start = async (retries = 0, pairing = true): Promise<void> => {
                         }
                     }
 
+                    if (plugin.isOwner && !m.isOwner) continue
+
                     if (valid && typeof plugin.exec === 'function') {
+
                         await plugin.exec(m, args).catch(async (err: Error) => {
                             console.error(`Error al ejecutar plugin ${plugin.name}:`, err);
                             await m.reply(`Error en el comando: ${err.message || 'Error desconocido'}`);

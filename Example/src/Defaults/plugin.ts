@@ -4,6 +4,8 @@ import { pathToFileURL } from "url";
 import type { Plugin } from "../@Types";
 import logger from "../Utils/logger";
 
+const __dirname = import.meta.dirname;
+
 export default new class Plugins {
     public plugins: Plugin[] = [];
 

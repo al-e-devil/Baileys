@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from "axios";
 import { CookieJar } from "tough-cookie";
 import { wrapper } from "axios-cookiejar-support";
 import { exec } from "child_process";
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { readFileSync, unlinkSync, existsSync } from "fs";
 import { join } from "path";
 import util from "util";
 
@@ -183,7 +183,7 @@ export default new class YouTube {
         for (let i = 0; i < maxRetries; i++) {
             try {
                 const { data, headers: rh } = await this.client.get(mediaUrl, { headers: h });
-                if (!rh["content-type"]?.includes("application/json")) return mediaUrl;
+                if (!rh["content-type"]) return mediaUrl;
                 if (data?.percent === "Completed" && data?.fileUrl && data.fileUrl !== "In Processing...") return data.fileUrl;
             } catch { }
             await new Promise(r => setTimeout(r, delay));

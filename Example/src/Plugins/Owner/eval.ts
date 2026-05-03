@@ -1,6 +1,15 @@
 import { format } from "util";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const __filename = import.meta.filename;
+const __dirname = import.meta.dirname;
+
 import syntaxErr from "syntax-error";
-import * as Baileys from "baileys"
+
+
+import * as Baileys from "../../../src"
+import { proto } from "../../../../WAProto"
+import config from "../../config";
 
 export default {
     name: "Eval",
@@ -10,17 +19,18 @@ export default {
     exec: async (m: any, { sock, db, r }: { sock: any, db: any, r: any }) => {
         let _syntax = ""
         let _return;
-        
+
         const context = {
             Baileys,
-            proto: Baileys.proto,
-            
+            proto,
+
             sock,
             m,
             db,
             request: r,
             r,
-            
+            config,
+
             console,
             JSON,
             Math,
@@ -39,12 +49,14 @@ export default {
             clearTimeout,
             setInterval,
             clearInterval,
-            
+
             format,
             inspect: (obj: any) => require("util").inspect(obj, { depth: null, colors: true }),
-            require
+            require,
+            __dirname,
+            __filename
         }
-                
+
         const _filter = Object.fromEntries(
             Object.entries(context).filter(([key]) => !new Set(['default']).has(key))
         )
@@ -52,7 +64,8 @@ export default {
         const keys = Object.keys(_filter)
         const values = Object.values(_filter)
 
-        let _text = /await|return/gi.test(m.body) ? `(async () => { ${m.body.slice(1)} })()` : `return (${m.body.slice(1)})`
+        let _text = /await|return/gi.test(m.body) ? `(async () => { ${m.body.slice(1)} })()` : `return (${m.body.slice(1) || 'undefined'})`
+
         try {
             const fn = new Function(...keys, _text)
             _return = fn(...values)

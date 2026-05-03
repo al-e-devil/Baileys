@@ -1,4 +1,4 @@
-import type { proto, WASocket } from "baileys"
+import type { proto, WASocket } from "../../../src"
 import type { database } from "../Database/database"
 import type { Auralix } from "../Defaults/core"
 import type Request from "../Scraper/Request"
@@ -53,6 +53,7 @@ export interface Group {
 export interface MsgCtx {
     id: string
     device: string
+    isOwner: boolean
     isBot: boolean
     from: string
     isMe: boolean
@@ -93,5 +94,22 @@ export interface Plugin {
     command?: string[] | RegExp
     exec?: (m: MsgCtx, ctx: PluginArgs) => Promise<any>
     start?: (m: MsgCtx, ctx: PluginArgs) => Promise<any>
+    isOwner?: boolean
     path?: string
+}
+
+export interface Config {
+    owner: {
+        number: string
+    }
+    bot: {
+        name: string
+        author: string
+        version: string
+    }
+    mods: string[]
+    prefix: string[]
+    log: {
+        level: string
+    }
 }

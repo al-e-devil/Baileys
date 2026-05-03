@@ -10,47 +10,25 @@ try {
   content = content.replace(/(['"])protobufjs\/minimal(['"])/g, '$1protobufjs/minimal.js$2')
 
   const marker = 'const $root = $protobuf.roots["default"] || ($protobuf.roots["default"] = {});\n\n'
-  const longToStringHelper =
-    'function longToString(value, unsigned) {\n' +
-    '\tif (typeof value === "string") {\n' +
-    '\t\treturn value;\n' +
-    '\t}\n' +
-    '\tif (typeof value === "number") {\n' +
-    '\t\treturn String(value);\n' +
-    '\t}\n' +
-    '\t// Fast path: convert Long {low, high} directly via native BigInt\n' +
-    '\t// BigInt.toString() is a native C++ operation, much faster than Long\'s pure JS division loops\n' +
-    '\tif (value && typeof value.low === "number" && typeof value.high === "number") {\n' +
-    '\t\tconst lo = BigInt(value.low >>> 0);\n' +
-    '\t\tconst hi = BigInt(value.high >>> 0);\n' +
-    '\t\tconst combined = (hi << 32n) | lo;\n' +
-    '\t\tif (!unsigned && value.high < 0) {\n' +
-    '\t\t\treturn (combined - (1n << 64n)).toString();\n' +
-    '\t\t}\n' +
-    '\t\treturn combined.toString();\n' +
-    '\t}\n' +
-    '\treturn String(value);\n' +
-    '}\n\n'
-  const longToNumberHelper =
-    'function longToNumber(value, unsigned) {\n' +
-    '\tif (typeof value === "number") {\n' +
-    '\t\treturn value;\n' +
-    '\t}\n' +
-    '\tif (typeof value === "string") {\n' +
-    '\t\treturn Number(value);\n' +
-    '\t}\n' +
-    '\t// Fast path: convert Long {low, high} directly via native BigInt\n' +
-    '\tif (value && typeof value.low === "number" && typeof value.high === "number") {\n' +
-    '\t\tconst lo = BigInt(value.low >>> 0);\n' +
-    '\t\tconst hi = BigInt(value.high >>> 0);\n' +
-    '\t\tconst combined = (hi << 32n) | lo;\n' +
-    '\t\tif (!unsigned && value.high < 0) {\n' +
-    '\t\t\treturn Number(combined - (1n << 64n));\n' +
-    '\t\t}\n' +
-    '\t\treturn Number(combined);\n' +
-    '\t}\n' +
-    '\treturn Number(value);\n' +
-    '}\n\n'
+  const longToStringHelper = `function longToString(value, unsigned) {
+	if (typeof value === "string") return value;
+	if (typeof value === "number") return String(value);
+	if (value && typeof value.low === "number" && typeof value.high === "number") {
+		const combined = (BigInt(value.high >>> 0) << 32n) | BigInt(value.low >>> 0);
+		return (!unsigned && value.high < 0) ? (combined - (1n << 64n)).toString() : combined.toString();
+	}
+	return String(value);
+}\n\n`
+
+  const longToNumberHelper = `function longToNumber(value, unsigned) {
+	if (typeof value === "number") return value;
+	if (typeof value === "string") return Number(value);
+	if (value && typeof value.low === "number" && typeof value.high === "number") {
+		const combined = (BigInt(value.high >>> 0) << 32n) | BigInt(value.low >>> 0);
+		return (!unsigned && value.high < 0) ? Number(combined - (1n << 64n)) : Number(combined);
+	}
+	return Number(value);
+}\n\n`
 
   if (!content.includes('function longToString(')) {
     const markerIndex = content.indexOf(marker)
@@ -60,8 +38,8 @@ try {
 
     content = content.replace(marker, `${marker}${longToStringHelper}${longToNumberHelper}`)
   } else {
-    const longToStringRegex = /function longToString\(value, unsigned\) {\n[\s\S]*?\n}\n\n/
-    const longToNumberRegex = /function longToNumber\(value, unsigned\) {\n[\s\S]*?\n}\n\n/
+    const longToStringRegex = /function longToString\(value, unsigned\) \{\n[\s\S]*?\n\}\n\n/
+    const longToNumberRegex = /function longToNumber\(value, unsigned\) \{\n[\s\S]*?\n\}\n\n/
 
     if (!longToStringRegex.test(content) || !longToNumberRegex.test(content)) {
       throw new Error('Unable to update Long helpers: existing definitions not found')
@@ -78,8 +56,8 @@ try {
   })
 
   writeFileSync(filePath, content, 'utf8')
-  console.log(`✅ Fixed imports in ${filePath}`)
+  console.log(`Fixed imports in ${filePath}`)
 } catch (error) {
-  console.error(`❌ Error fixing imports: ${error.message}`)
+  console.error(`Error fixing imports: ${error.message}`)
   exit(1)
 }
