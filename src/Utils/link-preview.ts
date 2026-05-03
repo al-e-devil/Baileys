@@ -1,16 +1,12 @@
-import { AxiosRequestConfig } from 'axios'
-import { ILogger } from './logger'
-import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
+import type { WAMediaUploadFunction, WAUrlInfo } from '../Types'
+import type { ILogger } from './logger'
 import { prepareWAMessageMedia } from './messages'
 import { extractImageThumb, getHttpStream } from './messages-media'
 
 const THUMBNAIL_WIDTH_PX = 192
 
 /** Fetches an image and generates a thumbnail for it */
-const getCompressedJpegThumbnail = async (
-	url: string,
-	{ thumbnailWidth, fetchOpts }: URLGenerationOptions
-) => {
+const getCompressedJpegThumbnail = async (url: string, { thumbnailWidth, fetchOpts }: URLGenerationOptions) => {
 	const stream = await getHttpStream(url, fetchOpts)
 	const result = await extractImageThumb(stream, thumbnailWidth)
 	return result
@@ -22,7 +18,7 @@ export type URLGenerationOptions = {
 		/** Timeout in ms */
 		timeout: number
 		proxyUrl?: string
-		headers?: AxiosRequestConfig<{}>['headers']
+		headers?: HeadersInit
 	}
 	uploadImage?: WAMediaUploadFunction
 	logger?: ILogger
@@ -39,7 +35,7 @@ export const getUrlInfo = async (
 	opts: URLGenerationOptions = {
 		thumbnailWidth: THUMBNAIL_WIDTH_PX,
 		fetchOpts: { timeout: 3000 }
-	},
+	}
 ): Promise<WAUrlInfo | undefined> => {
 	try {
 		// retries
@@ -63,9 +59,9 @@ export const getUrlInfo = async (
 				}
 
 				if (
-					forwardedURLObj.hostname === urlObj.hostname
-					|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
-					|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
+					forwardedURLObj.hostname === urlObj.hostname ||
+					forwardedURLObj.hostname === 'www.' + urlObj.hostname ||
+					'www.' + forwardedURLObj.hostname === urlObj.hostname
 				) {
 					retries + 1
 					return true
@@ -73,7 +69,7 @@ export const getUrlInfo = async (
 					return false
 				}
 			},
-			headers: opts.fetchOpts as {}
+			headers: opts.fetchOpts?.headers as {}
 		})
 		if (info && 'title' in info && info.title) {
 			const [image] = info.images
@@ -88,33 +84,26 @@ export const getUrlInfo = async (
 
 			if (opts.uploadImage) {
 				const { imageMessage } = await prepareWAMessageMedia(
-					{ image: { url: image } },
+					{ image: { url: image! } },
 					{
 						upload: opts.uploadImage,
 						mediaTypeOverride: 'thumbnail-link',
 						options: opts.fetchOpts
 					}
 				)
-				urlInfo.jpegThumbnail = imageMessage?.jpegThumbnail
-					? Buffer.from(imageMessage.jpegThumbnail)
-					: undefined
+				urlInfo.jpegThumbnail = imageMessage?.jpegThumbnail ? Buffer.from(imageMessage.jpegThumbnail) : undefined
 				urlInfo.highQualityThumbnail = imageMessage || undefined
 			} else {
 				try {
-					urlInfo.jpegThumbnail = image
-						? (await getCompressedJpegThumbnail(image, opts)).buffer
-						: undefined
-				} catch (error) {
-					opts.logger?.debug(
-						{ err: error.stack, url: previewLink },
-						'error in generating thumbnail'
-					)
+					urlInfo.jpegThumbnail = image ? (await getCompressedJpegThumbnail(image, opts)).buffer : undefined
+				} catch (error: any) {
+					opts.logger?.debug({ err: error.stack, url: previewLink }, 'error in generating thumbnail')
 				}
 			}
 
 			return urlInfo
 		}
-	} catch (error) {
+	} catch (error: any) {
 		if (!error.message.includes('receive a valid')) {
 			throw error
 		}

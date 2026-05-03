@@ -1,6 +1,5 @@
-
 import * as constants from './constants'
-import { FullJid, jidDecode } from './jid-utils'
+import { type FullJid, jidDecode } from './jid-utils'
 import type { BinaryNode, BinaryNodeCodingOptions } from './types'
 
 export const encodeBinaryNode = (
@@ -38,9 +37,7 @@ const encodeBinaryNodeInner = (
 		pushBytes([(value >> 8) & 0xff, value & 0xff])
 	}
 
-	const pushInt20 = (value: number) => (
-		pushBytes([(value >> 16) & 0x0f, (value >> 8) & 0xff, value & 0xff])
-	)
+	const pushInt20 = (value: number) => pushBytes([(value >> 16) & 0x0f, (value >> 8) & 0xff, value & 0xff])
 	const writeByteLength = (length: number) => {
 		if (length >= 4294967296) {
 			throw new Error('string too large to encode: ' + length)
@@ -141,11 +138,11 @@ const encodeBinaryNodeInner = (
 
 		const strLengthHalf = Math.floor(str.length / 2)
 		for (let i = 0; i < strLengthHalf; i++) {
-			pushByte(packBytePair(str[2 * i], str[2 * i + 1]))
+			pushByte(packBytePair(str[2 * i]!, str[2 * i + 1]!))
 		}
 
 		if (str.length % 2 !== 0) {
-			pushByte(packBytePair(str[str.length - 1], '\x00'))
+			pushByte(packBytePair(str[str.length - 1]!, '\x00'))
 		}
 	}
 
@@ -185,6 +182,11 @@ const encodeBinaryNodeInner = (
 			return
 		}
 
+		if (str === '') {
+			writeStringRaw(str)
+			return
+		}
+
 		const tokenIndex = TOKEN_MAP[str]
 		if (tokenIndex) {
 			if (typeof tokenIndex.dict === 'number') {
@@ -196,7 +198,7 @@ const encodeBinaryNodeInner = (
 			writePackedBytes(str, 'nibble')
 		} else if (isHex(str)) {
 			writePackedBytes(str, 'hex')
-		} else if (str) {
+		} else {
 			const decodedJid = jidDecode(str)
 			if (decodedJid) {
 				writeJid(decodedJid)
@@ -221,9 +223,7 @@ const encodeBinaryNodeInner = (
 		throw new Error('Invalid node: tag cannot be undefined')
 	}
 
-	const validAttributes = Object.keys(attrs || {}).filter(k => (
-		typeof attrs[k] !== 'undefined' && attrs[k] !== null
-	))
+	const validAttributes = Object.keys(attrs || {}).filter(k => typeof attrs[k] !== 'undefined' && attrs[k] !== null)
 
 	writeListStart(2 * validAttributes.length + 1 + (typeof content !== 'undefined' ? 1 : 0))
 	writeString(tag)
@@ -241,7 +241,8 @@ const encodeBinaryNodeInner = (
 		writeByteLength(content.length)
 		pushBytes(content)
 	} else if (Array.isArray(content)) {
-		const validContent = content.filter(item => item && (item.tag || Buffer.isBuffer(item) || item instanceof Uint8Array || typeof item === 'string')
+		const validContent = content.filter(
+			item => item && (item.tag || Buffer.isBuffer(item) || item instanceof Uint8Array || typeof item === 'string')
 		)
 		writeListStart(validContent.length)
 		for (const item of validContent) {

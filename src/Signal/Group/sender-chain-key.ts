@@ -7,13 +7,9 @@ export class SenderChainKey {
 	private readonly iteration: number
 	private readonly chainKey: Buffer
 
-	constructor(iteration: number, chainKey: any) {
+	constructor(iteration: number, chainKey: Uint8Array | Buffer) {
 		this.iteration = iteration
-		if (chainKey instanceof Buffer) {
-			this.chainKey = chainKey
-		} else {
-			this.chainKey = Buffer.from(chainKey || [])
-		}
+		this.chainKey = Buffer.from(chainKey)
 	}
 
 	public getIteration(): number {

@@ -3,8 +3,18 @@ import { createHash } from 'crypto'
 import { createWriteStream, promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { CatalogCollection, CatalogStatus, OrderDetails, OrderProduct, Product, ProductCreate, ProductUpdate, WAMediaUpload, WAMediaUploadFunction } from '../Types'
-import { BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../WABinary'
+import type {
+	CatalogCollection,
+	CatalogStatus,
+	OrderDetails,
+	OrderProduct,
+	Product,
+	ProductCreate,
+	ProductUpdate,
+	WAMediaUpload,
+	WAMediaUploadFunction
+} from '../Types'
+import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../WABinary'
 import { generateMessageIDV2 } from './generics'
 import { getStream, getUrlFromDirectPath } from './messages-media'
 
@@ -15,28 +25,24 @@ export const parseCatalogNode = (node: BinaryNode) => {
 
 	return {
 		products,
-		nextPageCursor: paging
-			? getBinaryNodeChildString(paging, 'after')
-			: undefined
+		nextPageCursor: paging ? getBinaryNodeChildString(paging, 'after') : undefined
 	}
 }
 
 export const parseCollectionsNode = (node: BinaryNode) => {
 	const collectionsNode = getBinaryNodeChild(node, 'collections')
-	const collections = getBinaryNodeChildren(collectionsNode, 'collection').map<CatalogCollection>(
-		collectionNode => {
-			const id = getBinaryNodeChildString(collectionNode, 'id')!
-			const name = getBinaryNodeChildString(collectionNode, 'name')!
+	const collections = getBinaryNodeChildren(collectionsNode, 'collection').map<CatalogCollection>(collectionNode => {
+		const id = getBinaryNodeChildString(collectionNode, 'id')!
+		const name = getBinaryNodeChildString(collectionNode, 'name')!
 
-			const products = getBinaryNodeChildren(collectionNode, 'product').map(parseProductNode)
-			return {
-				id,
-				name,
-				products,
-				status: parseStatusInfo(collectionNode)
-			}
+		const products = getBinaryNodeChildren(collectionNode, 'product').map(parseProductNode)
+		return {
+			id,
+			name,
+			products,
+			status: parseStatusInfo(collectionNode)
 		}
-	)
+	})
 
 	return {
 		collections
@@ -45,26 +51,24 @@ export const parseCollectionsNode = (node: BinaryNode) => {
 
 export const parseOrderDetailsNode = (node: BinaryNode) => {
 	const orderNode = getBinaryNodeChild(node, 'order')
-	const products = getBinaryNodeChildren(orderNode, 'product').map<OrderProduct>(
-		productNode => {
-			const imageNode = getBinaryNodeChild(productNode, 'image')!
-			return {
-				id: getBinaryNodeChildString(productNode, 'id')!,
-				name: getBinaryNodeChildString(productNode, 'name')!,
-				imageUrl: getBinaryNodeChildString(imageNode, 'url')!,
-				price: +getBinaryNodeChildString(productNode, 'price')!,
-				currency: getBinaryNodeChildString(productNode, 'currency')!,
-				quantity: +getBinaryNodeChildString(productNode, 'quantity')!
-			}
+	const products = getBinaryNodeChildren(orderNode, 'product').map<OrderProduct>(productNode => {
+		const imageNode = getBinaryNodeChild(productNode, 'image')!
+		return {
+			id: getBinaryNodeChildString(productNode, 'id')!,
+			name: getBinaryNodeChildString(productNode, 'name')!,
+			imageUrl: getBinaryNodeChildString(imageNode, 'url')!,
+			price: +getBinaryNodeChildString(productNode, 'price')!,
+			currency: getBinaryNodeChildString(productNode, 'currency')!,
+			quantity: +getBinaryNodeChildString(productNode, 'quantity')!
 		}
-	)
+	})
 
 	const priceNode = getBinaryNodeChild(orderNode, 'price')
 
 	const orderDetails: OrderDetails = {
 		price: {
 			total: +getBinaryNodeChildString(priceNode, 'total')!,
-			currency: getBinaryNodeChildString(priceNode, 'currency')!,
+			currency: getBinaryNodeChildString(priceNode, 'currency')!
 		},
 		products
 	}
@@ -112,25 +116,23 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'media',
 			attrs: {},
-			content: product.images.map(
-				img => {
-					if (!('url' in img)) {
-						throw new Boom('Expected img for product to already be uploaded', { statusCode: 400 })
-					}
-
-					return {
-						tag: 'image',
-						attrs: {},
-						content: [
-							{
-								tag: 'url',
-								attrs: {},
-								content: Buffer.from(img.url.toString())
-							}
-						]
-					}
+			content: product.images.map(img => {
+				if (!('url' in img)) {
+					throw new Boom('Expected img for product to already be uploaded', { statusCode: 400 })
 				}
-			)
+
+				return {
+					tag: 'image',
+					attrs: {},
+					content: [
+						{
+							tag: 'url',
+							attrs: {},
+							content: Buffer.from(img.url.toString())
+						}
+					]
+				}
+			})
 		})
 	}
 
@@ -168,7 +170,6 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		}
 	}
 
-
 	if (typeof product.isHidden !== 'undefined') {
 		attrs['is_hidden'] = product.isHidden.toString()
 	}
@@ -192,7 +193,7 @@ export const parseProductNode = (productNode: BinaryNode) => {
 		id,
 		imageUrls: parseImageUrls(mediaNode),
 		reviewStatus: {
-			whatsapp: getBinaryNodeChildString(statusInfoNode, 'status')!,
+			whatsapp: getBinaryNodeChildString(statusInfoNode, 'status')!
 		},
 		availability: 'in stock',
 		name: getBinaryNodeChildString(productNode, 'name')!,
@@ -201,7 +202,7 @@ export const parseProductNode = (productNode: BinaryNode) => {
 		description: getBinaryNodeChildString(productNode, 'description')!,
 		price: +getBinaryNodeChildString(productNode, 'price')!,
 		currency: getBinaryNodeChildString(productNode, 'currency')!,
-		isHidden,
+		isHidden
 	}
 
 	return product
@@ -210,10 +211,16 @@ export const parseProductNode = (productNode: BinaryNode) => {
 /**
  * Uploads images not already uploaded to WA's servers
  */
-export async function uploadingNecessaryImagesOfProduct<T extends ProductUpdate | ProductCreate>(product: T, waUploadToServer: WAMediaUploadFunction, timeoutMs = 30_000) {
+export async function uploadingNecessaryImagesOfProduct<T extends ProductUpdate | ProductCreate>(
+	product: T,
+	waUploadToServer: WAMediaUploadFunction,
+	timeoutMs = 30_000
+) {
 	product = {
 		...product,
-		images: product.images ? await uploadingNecessaryImages(product.images, waUploadToServer, timeoutMs) : product.images
+		images: product.images
+			? await uploadingNecessaryImages(product.images, waUploadToServer, timeoutMs)
+			: product.images
 	}
 	return product
 }
@@ -227,45 +234,37 @@ export const uploadingNecessaryImages = async (
 	timeoutMs = 30_000
 ) => {
 	const results = await Promise.all(
-		images.map<Promise<{ url: string }>>(
-			async img => {
-
-				if ('url' in img) {
-					const url = img.url.toString()
-					if (url.includes('.whatsapp.net')) {
-						return { url }
-					}
+		images.map<Promise<{ url: string }>>(async img => {
+			if ('url' in img) {
+				const url = img.url.toString()
+				if (url.includes('.whatsapp.net')) {
+					return { url }
 				}
-
-				const { stream } = await getStream(img)
-				const hasher = createHash('sha256')
-
-				const filePath = join(tmpdir(), 'img' + generateMessageIDV2())
-				const encFileWriteStream = createWriteStream(filePath)
-
-				for await (const block of stream) {
-					hasher.update(block)
-					encFileWriteStream.write(block)
-				}
-
-				const sha = hasher.digest('base64')
-
-				const { directPath } = await waUploadToServer(
-					filePath,
-					{
-						mediaType: 'product-catalog-image',
-						fileEncSha256B64: sha,
-						timeoutMs
-					}
-				)
-
-				await fs
-					.unlink(filePath)
-					.catch(err => console.log('Error deleting temp file ', err))
-
-				return { url: getUrlFromDirectPath(directPath) }
 			}
-		)
+
+			const { stream } = await getStream(img)
+			const hasher = createHash('sha256')
+
+			const filePath = join(tmpdir(), 'img' + generateMessageIDV2())
+			const encFileWriteStream = createWriteStream(filePath)
+
+			for await (const block of stream) {
+				hasher.update(block)
+				encFileWriteStream.write(block)
+			}
+
+			const sha = hasher.digest('base64')
+
+			const { directPath } = await waUploadToServer(filePath, {
+				mediaType: 'product-catalog-image',
+				fileEncSha256B64: sha,
+				timeoutMs
+			})
+
+			await fs.unlink(filePath).catch(err => console.log('Error deleting temp file ', err))
+
+			return { url: getUrlFromDirectPath(directPath) }
+		})
 	)
 	return results
 }
@@ -282,6 +281,6 @@ const parseStatusInfo = (mediaNode: BinaryNode): CatalogStatus => {
 	const node = getBinaryNodeChild(mediaNode, 'status_info')
 	return {
 		status: getBinaryNodeChildString(node, 'status')!,
-		canAppeal: getBinaryNodeChildString(node, 'can_appeal') === 'true',
+		canAppeal: getBinaryNodeChildString(node, 'can_appeal') === 'true'
 	}
 }
