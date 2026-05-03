@@ -1070,9 +1070,9 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				}
 
 				if (additionalNodes && additionalNodes.length > 0) {
-					(stanza.content as BinaryNode[]).push(...additionalNodes)
+					; (stanza.content as BinaryNode[]).push(...additionalNodes)
 				} else if ((isJidGroup(jid) || (isPnUser(jid) || isLidUser(jid)) && ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'ephemeralMessage', 'templateMessage', 'interactiveMessage', 'buttonsMessage'].find(_ => (message as any)?.[_]))) {
-					(stanza.content as BinaryNode[]).push({
+					; (stanza.content as BinaryNode[]).push({
 						tag: "biz",
 						attrs: {},
 						content: [
