@@ -1,21 +1,25 @@
-import sqlite3 from 'sqlite3';
-import { Database, open } from "sqlite";
+import Database from 'better-sqlite3';
 import { performance } from 'perf_hooks';
 import { Logger } from "pino";
-import { AuthenticationState, BufferJSON, initAuthCreds, proto } from '../../src';
+import { AuthenticationState, BufferJSON, initAuthCreds, proto } from '../../../src';
+
+import fs from 'fs';
+import path from 'path';
 
 export default new class SQLite {
-    private instance: Database | null = null;
+    private instance: Database.Database | null = null;
 
-    async getDatabaseConnection(filename: string, customLogger: Logger): Promise<Database> {
+    getDatabaseConnection(filename: string, customLogger: Logger): Database.Database {
         if (this.instance) return this.instance;
 
-        this.instance = await open({
-            filename: filename,
-            driver: sqlite3.Database
-        });
+        const dir = path.dirname(filename);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
 
-        await this.instance.exec(`
+        this.instance = new Database(filename);
+
+        this.instance.exec(`
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
             PRAGMA temp_store = MEMORY;
@@ -30,55 +34,57 @@ export default new class SQLite {
             CREATE INDEX IF NOT EXISTS idx_session_key ON auth_state (session_id, data_key);
         `);
 
-        customLogger.debug('Database connection established and configured');
+        customLogger.debug('Database connection established and configured (better-sqlite3)');
 
         return this.instance;
     }
 
-    async profile<T>(name: string, fn: () => Promise<T>, logger: Logger): Promise<T> {
+    profile<T>(name: string, fn: () => T, logger: Logger): T {
         const start = performance.now();
-        const result = await fn();
+        const result = fn();
         const end = performance.now();
         logger.debug(`${name} took ${(end - start).toFixed(2)} ms`)
         return result
     }
 
-    async AuthState(sessionId: string, filename: string, customLogger: Logger): Promise<{
+    async AuthState(sessionId: string, filename: string, logger: Logger): Promise<{
         state: AuthenticationState,
         saveCreds: () => Promise<void>,
         deleteSession: () => Promise<void>
     }> {
-        const logger = customLogger;
-        const db = await this.getDatabaseConnection(filename, customLogger);
+        const db = this.getDatabaseConnection(filename, logger);
 
-        const writeData = async (key: string, data: any) => {
+        const writeData = (key: string, data: any) => {
             const serialized = JSON.stringify(data, BufferJSON.replacer);
-            await db.run('INSERT OR REPLACE INTO auth_state (session_id, data_key, data_value) VALUES (?, ?, ?)', [sessionId, key, serialized]);
+            db.prepare('INSERT OR REPLACE INTO auth_state (session_id, data_key, data_value) VALUES (?, ?, ?)').run(sessionId, key, serialized);
         };
 
-        const readData = async (key: string): Promise<any | null> => {
-            const row = await db.get<{ data_value: string }>('SELECT data_value FROM auth_state WHERE session_id = ? AND data_key = ?', [sessionId, key]);
+        const readData = (key: string): any | null => {
+            const row = db.prepare('SELECT data_value FROM auth_state WHERE session_id = ? AND data_key = ?').get(sessionId, key) as { data_value: string } | undefined;
             return row?.data_value ? JSON.parse(row.data_value, BufferJSON.reviver) : null;
         };
 
-        const creds = await this.profile('readCreds', () => readData('auth_creds'), logger) || initAuthCreds();
+        const creds = this.profile('readCreds', () => readData('auth_creds'), logger) || initAuthCreds();
 
         const state: AuthenticationState = {
             creds,
             keys: {
                 get: async (type: string, ids: string[]) => {
-                    return this.profile('keys.get', async () => {
+                    return this.profile('keys.get', () => {
                         const data: { [id: string]: any } = {};
                         if (!ids.length) return data;
+
                         const placeholders = ids.map(() => '?').join(',');
                         const query = `SELECT data_key, data_value FROM auth_state WHERE session_id = ? AND data_key IN (${placeholders})`;
                         const params = [sessionId, ...ids.map(id => `${type}-${id}`)];
-                        const rows = await db.all<{ data_key: string, data_value: string }[]>(query, params);
+
+                        const rows = db.prepare(query).all(...params) as { data_key: string, data_value: string }[];
+
                         rows.forEach(row => {
-                            const id = row.data_key.split('-')[1];
+                            const id = row.data_key.substring(type.length + 1);
                             let value = JSON.parse(row.data_value, BufferJSON.reviver);
                             if (type === 'app-state-sync-key') {
-                                value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                                value = proto.Message.AppStateSyncKeyData.create(value);
                             }
                             data[id] = value;
                         });
@@ -86,9 +92,7 @@ export default new class SQLite {
                     }, logger);
                 },
                 set: async (data: Record<string, Record<string, any>>) => {
-                    return this.profile('keys.set', async () => {
-                        await db.run('BEGIN TRANSACTION');
-
+                    return this.profile('keys.set', () => {
                         const insert: any[] = [];
                         const deleteKeys: string[] = [];
                         for (const [category, categoryData] of Object.entries(data)) {
@@ -103,17 +107,22 @@ export default new class SQLite {
                             }
                         }
 
-                        if (insert.length) {
-                            const placeholders = new Array(insert.length / 3).fill('(?, ?, ?)').join(',');
-                            await db.run(`INSERT OR REPLACE INTO auth_state (session_id, data_key, data_value) VALUES ${placeholders}`, insert);
-                        }
+                        const transaction = db.transaction(() => {
+                            const size = 300;
+                            for (let i = 0; i < insert.length; i += size * 3) {
+                                const chunk = insert.slice(i, i + size * 3);
+                                const placeholders = new Array(chunk.length / 3).fill('(?, ?, ?)').join(',');
+                                db.prepare(`INSERT OR REPLACE INTO auth_state (session_id, data_key, data_value) VALUES ${placeholders}`).run(...chunk);
+                            }
 
-                        if (deleteKeys.length) {
-                            const placeholders = deleteKeys.map(() => '?').join(',');
-                            await db.run(`DELETE FROM auth_state WHERE session_id = ? AND data_key IN (${placeholders})`, [sessionId, ...deleteKeys]);
-                        }
+                            for (let i = 0; i < deleteKeys.length; i += size) {
+                                const chunk = deleteKeys.slice(i, i + size);
+                                const placeholders = chunk.map(() => '?').join(',');
+                                db.prepare(`DELETE FROM auth_state WHERE session_id = ? AND data_key IN (${placeholders})`).run(sessionId, ...chunk);
+                            }
+                        });
 
-                        await db.run('COMMIT');
+                        transaction();
                     }, logger);
                 },
             },
@@ -122,12 +131,11 @@ export default new class SQLite {
         return {
             state,
             saveCreds: async () => {
-                await this.profile('saveCreds', () => writeData('auth_creds', state.creds), logger);
+                this.profile('saveCreds', () => writeData('auth_creds', state.creds), logger);
             },
             deleteSession: async () => {
-                await this.profile('deleteSession', () => db.run('DELETE FROM auth_state WHERE session_id = ?', sessionId), logger);
+                this.profile('deleteSession', () => db.prepare('DELETE FROM auth_state WHERE session_id = ?').run(sessionId), logger);
             },
         };
     }
 }
-

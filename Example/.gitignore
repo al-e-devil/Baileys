@@ -1,0 +1,15 @@
+Auth
+temp
+node_modules
+package-lock.json
+db.json
+.vs
+.vscode
+.env
+dist
+auth.db
+auth.db-shm
+auth.db-wal
+src/Database/database.db
+src/Database/database.db-shm
+src/Database/database.db-wal

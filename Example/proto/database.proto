@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package database;
+
+message User {
+    string email = 1;
+    string passwordHash = 2;
+    bool banned = 3;
+    string name = 4;
+    int32 age = 5;
+    int64 createdAt = 6;
+    int64 updatedAt = 7;
+    
+    // Economía y RPG
+    int64 coins = 8;
+    int64 xp = 9;
+    int32 level = 10;
+    int32 warns = 11;
+
+    // Kaori Integration
+    string number = 12;
+    string language = 13;
+    string timezone = 14;
+    string country = 15;
+    bool registered = 16;
+    bool blacklist = 17;
+}
+
+message Notify {
+    string message = 1;
+    bool status = 2;
+}
+
+message AntiLink {
+    bool status = 1;
+    map<string, bool> platforms = 2;
+}
+
+message Group {
+    string prefix = 1;
+    string welcome = 2;
+    string bye = 3;
+    bool mute = 4;
+    bool welcomeEnabled = 5;
+
+    // Kaori Integration
+    string name = 6;
+    string code = 7;
+    AntiLink antilink = 8;
+    bool antiporn = 9;
+    bool antionce = 10;
+    bool antifake = 11;
+    bool antitoxic = 12;
+    bool antidelete = 13;
+    
+    map<string, Notify> notifications = 14;
+}
+
+message Collection {
+    map<string, User> users = 1;
+    map<string, Group> groups = 2;
+}
