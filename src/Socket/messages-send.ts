@@ -32,7 +32,8 @@ import {
 	MessageRetryManager,
 	normalizeMessageContent,
 	parseAndInjectE2ESessions,
-	unixTimestampSeconds
+	unixTimestampSeconds,
+	getContentType
 } from '../Utils'
 import { getUrlInfo } from '../Utils/link-preview'
 import { makeKeyedMutex } from '../Utils/make-mutex'
@@ -973,39 +974,60 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				}
 			}
 
-			const buttonType = getButtonType(message)
-			const interactiveMsg = message.interactiveMessage || (message as any)?.viewOnceMessage?.message?.interactiveMessage || (message as any)?.viewOnceMessageV2?.message?.interactiveMessage;
-			const hasAdditionalBiz = additionalNodes?.find(node => node.tag === 'biz');
+			const msgType = getContentType(normalizeMessageContent(message))
+			const interactive = getInteractiveMessage(message)
 
-			if ((interactiveMsg || buttonType) && !hasAdditionalBiz) {
-				console.log(`[DEBUG] Preparando BIZ nativo para: ${buttonType || 'interactive'}`);
-				if (interactiveMsg) {
-					binaryNodeContent.push({
-						tag: "biz",
-						attrs: {},
-						content: [
-							{
-								tag: "interactive",
-								attrs: { type: "native_flow", v: "1" },
-								content: [
-									{
-										tag: "native_flow",
-										attrs: { v: "9", name: "mixed" }
-									}
-								]
+			if (!additionalNodes?.some(n => n.tag === 'biz') && [isJidGroup(jid), isPnUser(jid), isLidUser(jid)].includes(true)) {
+				let stanza: BinaryNode['content']
+				if (interactive?.carouselMessage) {
+					stanza = [
+						{
+							tag: 'interactive',
+							attrs: {
+								type: 'carousel',
+								v: '1'
+							},
+							content: [{
+								tag: 'carousel',
+								attrs: {
+									v: '1'
+								}
+							}]
+						}]
+				} else if (interactive || msgType === 'buttonsMessage') {
+					stanza = [
+						{
+							tag: 'interactive',
+							attrs: {
+								type: 'native_flow',
+								v: '1'
+							},
+							content: [{
+								tag: 'native_flow',
+								attrs: {
+									v: '9',
+									name: 'mixed'
+								}
+							}]
+						}
+					]
+				} else if (msgType === 'listMessage') {
+					stanza = [
+						{
+							tag: 'list',
+							attrs: {
+								type: 'product_list',
+								v: '2'
 							}
-						]
-					})
-				} else if (buttonType) {
+						}
+					]
+				}
+
+				if (stanza) {
 					binaryNodeContent.push({
 						tag: 'biz',
 						attrs: {},
-						content: [
-							{
-								tag: buttonType,
-								attrs: getButtonArgs(message)
-							}
-						]
+						content: stanza
 					})
 				}
 			}
@@ -1233,42 +1255,38 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		}
 	}
 
+	const getInteractiveMessage = (message: proto.IMessage) => (
+		message.interactiveMessage ||
+		(message as any)?.viewOnceMessage?.message?.interactiveMessage ||
+		(message as any)?.viewOnceMessageV2?.message?.interactiveMessage
+	)
+
 	const getButtonType = (message: proto.IMessage) => {
-		if (message.buttonsMessage) {
-			return 'buttons'
-		} else if (message.buttonsResponseMessage) {
-			return 'buttons_response'
-		} else if (message.interactiveResponseMessage) {
-			return 'interactive_response'
-		} else if (message.listMessage) {
-			return 'list'
-		} else if (message.listResponseMessage) {
-			return 'list_response'
-		} else if (message.interactiveMessage || (message as any)?.viewOnceMessage?.message?.interactiveMessage || (message as any)?.viewOnceMessageV2?.message?.interactiveMessage) {
-			return 'interactive'
-		}
+		if (message.buttonsMessage) return 'buttons'
+		if (message.buttonsResponseMessage) return 'buttons_response'
+		if (message.interactiveResponseMessage) return 'interactive_response'
+		if (message.listMessage) return 'list'
+		if (message.listResponseMessage) return 'list_response'
+		if (getInteractiveMessage(message)) return 'interactive'
 	}
 
 	const getButtonArgs = (message: proto.IMessage): BinaryNode['attrs'] => {
-		if (message.templateMessage) {
-			// TODO: Add attributes
-			return {}
-		} else if (message.listMessage) {
+		if (message.templateMessage) return {}
+		if (message.listMessage) {
 			const type = message.listMessage.listType
-			if (!type) {
-				throw new Boom('Expected list type inside message')
-			}
-
+			if (!type) throw new Boom('Expected list type')
 			return { v: '2', type: ListType[type].toLowerCase() }
-		} else if (message.interactiveMessage || (message as any)?.viewOnceMessage?.message?.interactiveMessage || (message as any)?.viewOnceMessageV2?.message?.interactiveMessage) {
-			const interactiveMessage = message.interactiveMessage || (message as any)?.viewOnceMessage?.message?.interactiveMessage || (message as any)?.viewOnceMessageV2?.message?.interactiveMessage;
+		}
+
+		const interactive = getInteractiveMessage(message)
+		if (interactive) {
 			return {
-				type: interactiveMessage.nativeFlowMessage || interactiveMessage.carouselMessage ? 'native_flow' : 'method',
+				type: interactive.nativeFlowMessage || interactive.carouselMessage ? 'native_flow' : 'method',
 				v: '1'
 			}
-		} else {
-			return {}
 		}
+
+		return {}
 	}
 
 	const issuePrivacyTokens = async (jids: string[], timestamp?: number) => {

@@ -63,7 +63,25 @@ export default {
         )
 
         await sock.relayMessage(msg.key.remoteJid!, msg.message!, {
-            messageId: msg.key.id!
+            messageId: msg.key.id!,
+            additionalNodes: [
+                {
+                    tag: "biz",
+                    attrs: {},
+                    content: [
+                        {
+                            tag: "interactive",
+                            attrs: { type: "native_flow", v: "1" },
+                            content: [
+                                {
+                                    tag: "native_flow",
+                                    attrs: { v: "9", name: "mixed" }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
         })
     }
 }

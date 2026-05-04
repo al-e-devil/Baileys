@@ -5,7 +5,6 @@ export default {
     exec: async (m: any, { sock, Baileys, proto }: { sock: any, Baileys: any, proto: any }) => {
         await sock.sendMessage(m.from, {
             text: 'fox',
-            footer: 'aea',
             carousel: [
                 {
                     title: 'puta',

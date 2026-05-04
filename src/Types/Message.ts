@@ -128,7 +128,7 @@ type ViewOnce = {
 
 type Buttonable = {
 	/** add buttons to the message  */
-	buttons?: proto.Message.ButtonsMessage.IButton[]
+	buttons?: proto.Message.ButtonsMessage.IButton[] | NativeFlowButton[]
 }
 type Templatable = {
 	/** add buttons to the message (conflicts with normal buttons)*/
@@ -155,6 +155,8 @@ type Cardsable = {
 	subtitle?: string
 }
 
+export type NativeFlowButton = proto.Message.InteractiveMessage.NativeFlowMessage.INativeFlowButton
+
 export type CarouselCard = {
 	title?: string
 	subtitle?: string
@@ -165,7 +167,7 @@ export type CarouselCard = {
 	video?: WAMediaUpload | { url: string } | { buffer: Buffer }
 	product?: proto.Message.IProductMessage
 	templateId?: string
-	buttons?: proto.Message.InteractiveMessage.NativeFlowMessage.NativeFlowButton[]
+	buttons?: NativeFlowButton[]
 }
 
 type Carouselable = {
@@ -457,6 +459,21 @@ export type AnyRegularMessageContent = (
 	}
 	| {
 		inviteAdmin: AdminInviteInfo
+	}
+	| {
+		inviteFollower: any
+	}
+	| {
+		stickerPack: any
+	}
+	| {
+		interactiveResponse: any
+	}
+	| {
+		collection: any
+	}
+	| {
+		invoice: any
 	}
 	| {
 		listReply: Omit<proto.Message.IListResponseMessage, 'contextInfo'>
