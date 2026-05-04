@@ -124,7 +124,7 @@ const assertColor = async (color: any) => {
 
 export const prepareWAMessageMedia = async (
 	message: AnyMediaMessageContent,
-	options: MessageContentGenerationOptions
+	options: MessageGenerationOptions
 ) => {
 	const logger = options.logger
 
@@ -252,7 +252,11 @@ export const prepareWAMessageMedia = async (
 		(async () => {
 			try {
 				if (requiresThumbnailComputation) {
-					const { thumbnail, originalImageDimensions } = await generateThumbnail(originalFilePath!, mediaType as 'image' | 'video', options)
+					const { thumbnail, originalImageDimensions } = await generateThumbnail(
+						originalFilePath!,
+						mediaType as 'image' | 'video',
+						options
+					)
 					uploadData.jpegThumbnail = thumbnail
 					if (!uploadData.width && originalImageDimensions) {
 						uploadData.width = originalImageDimensions.width
@@ -579,36 +583,26 @@ export const generateWAMessageContent = async (
 		m.listResponseMessage = { ...message.listReply }
 	} else if (hasNonNullishProperty(message, 'event')) {
 		m.eventMessage = {}
-		let startTime: number | undefined
-		if ('startDate' in message.event) {
-			startTime = Math.floor(message.event.startDate.getTime() / 1000)
-		} else {
-			startTime = message.event.startTime
-		}
+		const startTime = Math.floor(message.event.startDate.getTime() / 1000)
 
-		if ('call' in message.event && message.event.call && options.getCallLink) {
-			const token = await options.getCallLink(message.event.call, { startTime: startTime! })
+		if (message.event.call && options.getCallLink) {
+			const token = await options.getCallLink(message.event.call, { startTime })
 			m.eventMessage.joinLink = (message.event.call === 'audio' ? CALL_AUDIO_PREFIX : CALL_VIDEO_PREFIX) + token
 		}
 
 		m.messageContextInfo = {
+			// encKey
 			messageSecret: message.event.messageSecret || randomBytes(32)
 		}
 
 		m.eventMessage.name = message.event.name
 		m.eventMessage.description = message.event.description
 		m.eventMessage.startTime = startTime
-
-		if ('startDate' in message.event) {
-			m.eventMessage.endTime = message.event.endDate ? message.event.endDate.getTime() / 1000 : undefined
-			m.eventMessage.isCanceled = message.event.isCancelled ?? false
-			m.eventMessage.extraGuestsAllowed = message.event.extraGuestsAllowed
-			m.eventMessage.isScheduleCall = message.event.isScheduleCall ?? false
-			m.eventMessage.location = message.event.location
-		} else {
-			m.eventMessage.joinLink = message.event.joinLink
-			m.eventMessage.isCanceled = message.event.isCanceled
-		}
+		m.eventMessage.endTime = message.event.endDate ? message.event.endDate.getTime() / 1000 : undefined
+		m.eventMessage.isCanceled = message.event.isCancelled ?? false
+		m.eventMessage.extraGuestsAllowed = message.event.extraGuestsAllowed
+		m.eventMessage.isScheduleCall = message.event.isScheduleCall ?? false
+		m.eventMessage.location = message.event.location
 	} else if (hasNonNullishProperty(message, 'poll')) {
 		message.poll.selectableCount ||= 0
 		message.poll.toAnnouncementGroup ||= false
@@ -772,10 +766,7 @@ export const generateWAMessageContent = async (
 			}
 		}
 	} else {
-		m = await prepareWAMessageMedia(
-			message,
-			options
-		)
+		m = await prepareWAMessageMedia(message, options)
 	}
 
 	if (hasNonNullishProperty(message, 'buttons')) {

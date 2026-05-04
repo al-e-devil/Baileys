@@ -6,6 +6,7 @@ import { SenderKeyState } from './sender-key-state'
 
 export interface SenderKeyStore {
 	loadSenderKey(senderKeyName: SenderKeyName): Promise<SenderKeyRecord>
+
 	storeSenderKey(senderKeyName: SenderKeyName, record: SenderKeyRecord): Promise<void>
 }
 
@@ -106,11 +107,7 @@ export class GroupCipher {
 		}
 	}
 
-	private async getCipherText(
-		iv: Uint8Array,
-		key: Uint8Array,
-		plaintext: Uint8Array
-	): Promise<Buffer> {
+	private async getCipherText(iv: Uint8Array, key: Uint8Array, plaintext: Uint8Array): Promise<Buffer> {
 		try {
 			return encrypt(key, plaintext, iv)
 		} catch (e) {

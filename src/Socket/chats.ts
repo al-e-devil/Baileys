@@ -155,19 +155,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 					to: S_WHATSAPP_NET,
 					type: 'get'
 				},
-				content: [
-					{
-						tag: 'privacy',
-						attrs: {},
-						content: [
-							{
-								tag: 'categories',
-								attrs: {},
-								content: []
-							}
-						]
-					}
-				]
+				content: [{ tag: 'privacy', attrs: {} }]
 			})
 			privacySettings = reduceBinaryNodeToDictionary(content?.[0] as BinaryNode, 'category')
 		}
@@ -1226,7 +1214,7 @@ export const makeChatsSocket = (config: SocketConfig) => {
 		const historyMsg = getHistoryMsg(msg.message!)
 		const shouldProcessHistoryMsg = historyMsg
 			? shouldSyncHistoryMessage(historyMsg) &&
-			PROCESSABLE_HISTORY_TYPES.includes(historyMsg.syncType! as proto.HistorySync.HistorySyncType)
+				PROCESSABLE_HISTORY_TYPES.includes(historyMsg.syncType! as proto.HistorySync.HistorySyncType)
 			: false
 
 		if (historyMsg && shouldProcessHistoryMsg) {

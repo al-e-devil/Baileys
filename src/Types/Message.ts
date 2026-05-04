@@ -281,10 +281,13 @@ export type AnyMediaMessageContent = (
 		mimetype: string
 		fileName?: string
 		caption?: string
-	} & Contextable & Buttonable & Templatable & Interactiveable & Shopable & Cardsable)
-) & {
-	mimetype?: string
-} & Editable & {
+	} & Contextable &
+		Buttonable &
+		Templatable &
+		Interactiveable &
+		Shopable &
+		Cardsable)
+) & { mimetype?: string } & Editable & {
 	/** key of the parent albumMessage to associate this media with */
 	albumParentKey?: WAMessageKey
 }
@@ -381,7 +384,7 @@ export type AnyRegularMessageContent = (
 		Carouselable &
 		Editable)
 	| AnyMediaMessageContent
-	| { event: EventMessageOptions | EventsInfo }
+	| { event: EventMessageOptions }
 	| ({
 		poll: PollMessageOptions
 	} & Mentionable &

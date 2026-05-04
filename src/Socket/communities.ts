@@ -305,26 +305,16 @@ export const makeCommunitiesSocket = (config: SocketConfig) => {
 			const metadata = await communityMetadata(jid)
 			const prev = metadata.descId ?? null
 
-			await communityQuery(
-				jid,
-				'set',
-				[
-					{
-						tag: 'description',
-						attrs: {
-							...(description ? { id: generateMessageID() } : { delete: 'true' }),
-							...(prev ? { prev } : {})
-						},
-						content: description ? [
-							{
-								tag: 'body',
-								attrs: {},
-								content: Buffer.from(description, 'utf-8')
-							}
-						] : undefined
-					}
-				]
-			)
+			await communityQuery(jid, 'set', [
+				{
+					tag: 'description',
+					attrs: {
+						...(description ? { id: generateMessageID() } : { delete: 'true' }),
+						...(prev ? { prev } : {})
+					},
+					content: description ? [{ tag: 'body', attrs: {}, content: Buffer.from(description, 'utf-8') }] : undefined
+				}
+			])
 		},
 		communityInviteCode: async (jid: string) => {
 			const result = await communityQuery(jid, 'get', [{ tag: 'invite', attrs: {} }])
@@ -349,20 +339,9 @@ export const makeCommunitiesSocket = (config: SocketConfig) => {
 		 * @returns true if successful
 		 */
 		communityRevokeInviteV4: async (communityJid: string, invitedJid: string) => {
-			const result = await communityQuery(
-				communityJid,
-				'set',
-				[
-					{
-						tag: 'revoke',
-						attrs: {},
-						content: [{
-							tag: 'participant',
-							attrs: { jid: invitedJid }
-						}]
-					}
-				]
-			)
+			const result = await communityQuery(communityJid, 'set', [
+				{ tag: 'revoke', attrs: {}, content: [{ tag: 'participant', attrs: { jid: invitedJid } }] }
+			])
 			return !!result
 		},
 
@@ -462,7 +441,9 @@ export const extractCommunityMetadata = (result: BinaryNode) => {
 		descId = descChild.attrs.id
 	}
 
-	const communityId = community.attrs.id?.includes('@') ? community.attrs.id : jidEncode(community.attrs.id || '', 'g.us')
+	const communityId = community.attrs.id?.includes('@')
+		? community.attrs.id
+		: jidEncode(community.attrs.id || '', 'g.us')
 	const eph = getBinaryNodeChild(community, 'ephemeral')?.attrs.expiration
 	const memberAddMode = getBinaryNodeChildString(community, 'member_add_mode') === 'all_member_add'
 	const metadata: GroupMetadata = {

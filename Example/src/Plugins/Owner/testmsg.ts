@@ -14,10 +14,10 @@ export default {
                         title: "Menu List",
                         subtitle: "Single Select",
                         hasMediaAttachment: true,
-                        imageMessage: await Baileys.prepareWAMessageMedia(
+                        imageMessage: (await Baileys.prepareWAMessageMedia(
                             { image: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" } },
                             { upload: (sock as any).waUploadToServer }
-                        )
+                        )).imageMessage
                     }),
                     nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
                         messageParamsJson: JSON.stringify({
@@ -63,25 +63,7 @@ export default {
         )
 
         await sock.relayMessage(msg.key.remoteJid!, msg.message!, {
-            messageId: msg.key.id!,
-            additionalNodes: [
-                {
-                    tag: "biz",
-                    attrs: {},
-                    content: [
-                        {
-                            tag: "interactive",
-                            attrs: { type: "native_flow", v: "1" },
-                            content: [
-                                {
-                                    tag: "native_flow",
-                                    attrs: { v: "9", name: "mixed" }
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
+            messageId: msg.key.id!
         })
     }
 }
