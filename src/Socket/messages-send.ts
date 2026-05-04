@@ -974,27 +974,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				}
 			}
 
-			const msgType = getContentType(normalizeMessageContent(message))
 			const interactive = getInteractiveMessage(message)
 
 			if (!additionalNodes?.some(n => n.tag === 'biz') && [isJidGroup(jid), isPnUser(jid), isLidUser(jid)].includes(true)) {
 				let stanza: BinaryNode['content']
-				if (interactive?.carouselMessage) {
-					stanza = [
-						{
-							tag: 'interactive',
-							attrs: {
-								type: 'carousel',
-								v: '1'
-							},
-							content: [{
-								tag: 'carousel',
-								attrs: {
-									v: '1'
-								}
-							}]
-						}]
-				} else if (interactive || msgType === 'buttonsMessage') {
+				if (interactive) {
 					stanza = [
 						{
 							tag: 'interactive',
@@ -1009,16 +993,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 									name: 'mixed'
 								}
 							}]
-						}
-					]
-				} else if (msgType === 'listMessage') {
-					stanza = [
-						{
-							tag: 'list',
-							attrs: {
-								type: 'product_list',
-								v: '2'
-							}
 						}
 					]
 				}
@@ -1255,11 +1229,16 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		}
 	}
 
-	const getInteractiveMessage = (message: proto.IMessage) => (
-		message.interactiveMessage ||
-		(message as any)?.viewOnceMessage?.message?.interactiveMessage ||
-		(message as any)?.viewOnceMessageV2?.message?.interactiveMessage
-	)
+	const getInteractiveMessage = (message: proto.IMessage): proto.Message.IInteractiveMessage | undefined => {
+		const msg = message.interactiveMessage ||
+			message.viewOnceMessage?.message?.interactiveMessage ||
+			message.viewOnceMessageV2?.message?.interactiveMessage ||
+			message.viewOnceMessageV2Extension?.message?.interactiveMessage ||
+			message.ephemeralMessage?.message?.interactiveMessage ||
+			message.documentWithCaptionMessage?.message?.interactiveMessage
+
+		return msg as proto.Message.IInteractiveMessage | undefined
+	}
 
 	const getButtonType = (message: proto.IMessage) => {
 		if (message.buttonsMessage) return 'buttons'
