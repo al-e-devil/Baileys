@@ -1235,7 +1235,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			message.viewOnceMessageV2?.message?.interactiveMessage ||
 			message.viewOnceMessageV2Extension?.message?.interactiveMessage ||
 			message.ephemeralMessage?.message?.interactiveMessage ||
-			message.documentWithCaptionMessage?.message?.interactiveMessage
+			message.documentWithCaptionMessage?.message?.interactiveMessage ||
+			message.lottieStickerMessage?.message?.interactiveMessage
 
 		return msg as proto.Message.IInteractiveMessage | undefined
 	}

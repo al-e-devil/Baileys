@@ -15,7 +15,6 @@ export default {
     name: "Eval",
     description: "Evaluate command test code",
     command: /^[_]/i,
-    isOwner: true,
     exec: async (m: any, { sock, db, r }: { sock: any, db: any, r: any }) => {
         let _syntax = ""
         let _return;
