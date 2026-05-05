@@ -1,6 +1,6 @@
 export default {
     name: "test",
-    description: "implementación absoluta y exhaustiva de mensajes de whatsapp",
+    description: "implementación absoluta y experimental de mensajes de whatsapp",
     command: ["test", "t"],
     exec: async (m: any, { sock, Baileys, proto }: { sock: any, Baileys: any, proto: any }) => {
         const jid = m.from || m.key.remoteJid
@@ -17,190 +17,355 @@ export default {
 
         let msgContent: any
         let useGenerateWAMessage = true
+        let relayOptions: any = {}
         let options: any = { userJid: sock.user?.id, quoted: m }
 
         switch (type) {
             // ==========================================
-            // 1. AIRichResponseMessage (Meta AI)
+            // 1. EXPERIMENTALES Y NATIVE FLOW AVANZADO
             // ==========================================
-            case "airich_completo":
+            case "whiteboard":
                 msgContent = {
-                    richResponseMessage: {
-                        messageType: 1,
-                        submessages: [
-                            { messageType: 2, messageText: "*Reporte de IA Multimodal*" },
-                            {
-                                messageType: 4, // TABLE
-                                tableMetadata: {
-                                    title: "Tabla de Datos",
-                                    rows: [
-                                        { items: ["Métrica", "Valor"], isHeading: true },
-                                        { items: ["CPU", "45%"] },
-                                        { items: ["RAM", "2GB"] }
-                                    ]
+                    interactiveMessage: proto.Message.InteractiveMessage.create({
+                        header: { title: "🎨 Collaborative Whiteboard", hasMediaAttachment: false },
+                        body: { text: "Dibuja junto a otros en tiempo real (Experimental)" },
+                        footer: { text: "Future Feature • Baileys" },
+                        nativeFlowMessage: {
+                            buttons: [{
+                                name: "whiteboard",
+                                buttonParamsJson: JSON.stringify({
+                                    whiteboard_version: "1",
+                                    session_id: "WB_" + Date.now(),
+                                    display_text: "✏️ Abrir Pizarra",
+                                    whiteboard_config: {
+                                        canvas_size: { width: 800, height: 600 },
+                                        tools: ["pen", "eraser", "shapes", "text", "image"],
+                                        colors: ["#000000", "#FF0000", "#00FF00", "#0000FF"],
+                                        max_participants: 10,
+                                        enable_voice_chat: true,
+                                        save_format: "png"
+                                    }
+                                })
+                            }]
+                        }
+                    })
+                }
+                break
+
+            case "sheet":
+                msgContent = {
+                    interactiveMessage: proto.Message.InteractiveMessage.create({
+                        body: { text: "Prueba de Bottom Sheet y Tap Target" },
+                        header: { 
+                            title: "Menu Avanzado", 
+                            subtitle: "Configuración Especial", 
+                            hasMediaAttachment: true, 
+                            imageMessage 
+                        },
+                        nativeFlowMessage: {
+                            messageParamsJson: JSON.stringify({
+                                bottom_sheet: {
+                                    in_thread_buttons_limit: 2,
+                                    divider_indices: [1, 2, 3],
+                                    list_title: "Selecciona una categoría",
+                                    button_title: "🧾 Ver Opciones"
+                                },
+                                tap_target_configuration: {
+                                    title: "Enlace Directo",
+                                    description: "Click para ir a la web",
+                                    canonical_url: "https://github.com",
+                                    domain: "github.com",
+                                    button_index: 0
                                 }
-                            },
-                            {
-                                messageType: 5, // CODE
-                                codeMetadata: {
-                                    codeLanguage: "typescript",
-                                    codeBlocks: [{ highlightType: 1, codeContent: "const a = 10;\nconsole.log(a);" }]
-                                }
-                            },
-                            {
-                                messageType: 8, // LATEX
-                                latexMetadata: {
-                                    text: "Fórmula de Relatividad",
-                                    expressions: [{ latexExpression: "E = mc^2" }]
-                                }
-                            },
-                            {
-                                messageType: 7, // MAP
-                                mapMetadata: {
-                                    centerLatitude: 37.422,
-                                    centerLongitude: -122.084,
-                                    annotations: [{ annotationNumber: 1, latitude: 37.422, longitude: -122.084, title: "HQ" }]
-                                }
-                            },
-                            {
-                                messageType: 1, // GRID IMAGE
-                                gridImageMetadata: {
-                                    gridImageUrl: { imagePreviewUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" },
-                                    imageUrls: [{ imagePreviewUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" }]
+                            }),
+                            buttons: [
+                                { name: "single_select", buttonParamsJson: JSON.stringify({ has_multiple_buttons: true }) },
+                                { name: "call_permission_request", buttonParamsJson: JSON.stringify({ has_multiple_buttons: true }) },
+                                { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "Ver Todo", id: ".all" }) }
+                            ]
+                        }
+                    })
+                }
+                relayOptions = {
+                    additionalNodes: [{
+                        tag: "biz",
+                        attrs: {},
+                        content: [{
+                            tag: "interactive",
+                            attrs: { type: "native_flow", v: "1" },
+                            content: [{ tag: "native_flow", attrs: { v: "9", name: "mixed" } }]
+                        }]
+                    }]
+                }
+                break
+
+            // ==========================================
+            // 2. META AI & REELS (AIRichResponseMessage)
+            // ==========================================
+            case "reels":
+                const reelItems = [
+                    { title: "Video 1", profileIconUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", videoUrl: "https://www.instagram.com/reels/" },
+                    { title: "Video 2", profileIconUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", videoUrl: "https://www.instagram.com/reels/" }
+                ];
+                
+                const unifiedResponseData = {
+                    response_id: "res-" + Date.now(),
+                    sections: [
+                        { view_model: { primitive: { text: "Mira estos Reels interesantes", __typename: "GenAIMarkdownTextUXPrimitive" }, __typename: "GenAISingleLayoutViewModel" } },
+                        {
+                            view_model: {
+                                primitives: reelItems.map(item => ({
+                                    reels_url: item.videoUrl,
+                                    thumbnail_url: item.thumbnailUrl,
+                                    creator: item.title,
+                                    avatar_url: item.profileIconUrl,
+                                    reel_source: "IG",
+                                    is_verified: true,
+                                    __typename: "GenAIReelPrimitive"
+                                })),
+                                __typename: "GenAIHScrollLayoutViewModel"
+                            }
+                        }
+                    ]
+                };
+
+                msgContent = {
+                    messageContextInfo: {
+                        deviceListMetadata: {}, deviceListMetadataVersion: 2,
+                        botMetadata: {
+                            richResponseSourcesMetadata: {
+                                sources: reelItems.map((item, i) => ({ provider: "IG", sourceProviderURL: item.videoUrl, citationNumber: i + 1, sourceTitle: item.title }))
+                            }
+                        }
+                    },
+                    botForwardedMessage: {
+                        message: {
+                            richResponseMessage: {
+                                messageType: 1,
+                                submessages: [
+                                    { messageType: 2, messageText: "Contenido de Reels sugerido" },
+                                    {
+                                        messageType: 9, // CONTENT_ITEMS
+                                        contentItemsMetadata: {
+                                            contentType: 1,
+                                            itemsMetadata: reelItems.map(item => ({ reelItem: item }))
+                                        }
+                                    }
+                                ],
+                                unifiedResponse: {
+                                    data: Buffer.from(JSON.stringify(unifiedResponseData))
+                                },
+                                contextInfo: { 
+                                    isForwarded: true, 
+                                    forwardedAiBotMessageInfo: { botJid: "867051314767696@bot" } 
                                 }
                             }
-                        ]
+                        }
                     }
                 }
                 break
 
             // ==========================================
-            // 2. InteractiveMessage (Native Flow Total)
+            // 3. TRUCOS DE PROTOCOLO (STORY 5X)
             // ==========================================
-            case "interactive_full":
+            case "story":
+                let temp: any = {
+                    groupStatusMessageV2: {
+                        message: { conversation: "¡Este es un estado de grupo (Story) forzado!" }
+                    }
+                };
+                for (let i = 0; i < 5; i++) {
+                    temp = { groupStatusMessageV2: { message: temp } };
+                }
+                msgContent = temp;
+                break
+
+            // ==========================================
+            // 4. MENSAJES INTERACTIVOS BASE (NATIVE FLOW)
+            // ==========================================
+            case "carousel":
                 msgContent = {
                     interactiveMessage: proto.Message.InteractiveMessage.create({
-                        body: { text: "Explora todas las funciones nativas" },
-                        footer: { text: "WhatsApp Native Flow" },
-                        header: { title: "Panel de Control", hasMediaAttachment: true, imageMessage },
-                        nativeFlowMessage: {
-                            buttons: [
-                                { name: "cta_url", buttonParamsJson: JSON.stringify({ display_text: "Abrir GitHub", url: "https://github.com" }) },
-                                { name: "cta_call", buttonParamsJson: JSON.stringify({ display_text: "Llamar Soporte", phone_number: "12345" }) },
-                                { name: "cta_copy", buttonParamsJson: JSON.stringify({ display_text: "Copiar ID", copy_code: "NATIVE-99" }) },
-                                { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "Ping", id: ".ping" }) },
-                                { name: "single_select", buttonParamsJson: JSON.stringify({ title: "Menu", sections: [{ title: "X", rows: [{ title: "A", id: "1" }] }] }) },
-                                { name: "location_picker", buttonParamsJson: "{}" },
-                                { name: "address_message", buttonParamsJson: "{}" },
-                                { name: "review_order", buttonParamsJson: JSON.stringify({ items: [{ sku: "1", qty: 1 }] }) }
+                        body: { text: "Demo Carrusel" },
+                        carouselMessage: {
+                            cards: [
+                                {
+                                    body: { text: "Card 1" },
+                                    header: { title: "Enlace", hasMediaAttachment: true, imageMessage },
+                                    nativeFlowMessage: { buttons: [{ name: "cta_url", buttonParamsJson: JSON.stringify({ display_text: "Ir", url: "https://google.com" }) }] }
+                                }
                             ]
                         }
                     })
                 }
                 break
 
-            case "carousel_full":
+            case "botones":
                 msgContent = {
                     interactiveMessage: {
-                        carouselMessage: {
-                            cards: [
-                                {
-                                    body: { text: "Card URL" },
-                                    header: { title: "Enlace", hasMediaAttachment: true, imageMessage },
-                                    nativeFlowMessage: { buttons: [{ name: "cta_url", buttonParamsJson: JSON.stringify({ display_text: "Ir", url: "https://google.com" }) }] }
-                                },
-                                {
-                                    body: { text: "Card Copy" },
-                                    header: { title: "Copiado", hasMediaAttachment: true, imageMessage },
-                                    nativeFlowMessage: { buttons: [{ name: "cta_copy", buttonParamsJson: JSON.stringify({ display_text: "Copiar", copy_code: "123" }) }] }
-                                }
+                        body: { text: "Botones Nativa" },
+                        nativeFlowMessage: {
+                            buttons: [
+                                { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "Ping", id: ".ping" }) },
+                                { name: "cta_copy", buttonParamsJson: JSON.stringify({ display_text: "Copiar", copy_code: "123" }) }
                             ]
                         }
                     }
                 }
                 break
 
-            // ==========================================
-            // 3. TemplateMessages (Old & Modern)
-            // ==========================================
-            case "template_moderno":
+            case "lista":
                 msgContent = {
-                    templateMessage: {
-                        hydratedFourRowTemplate: {
-                            hydratedContentText: "Este es un template hidratado",
-                            hydratedButtons: [
-                                { index: 1, urlButton: { displayText: "Web", url: "https://wa.me" } },
-                                { index: 2, callButton: { displayText: "Llamar", phoneNumber: "123" } },
-                                { index: 3, quickReplyButton: { displayText: "Hola", id: "hi" } }
-                            ]
+                    interactiveMessage: {
+                        body: { text: "Lista Nativa" },
+                        nativeFlowMessage: {
+                            buttons: [{
+                                name: "single_select",
+                                buttonParamsJson: JSON.stringify({
+                                    title: "Menu",
+                                    sections: [{ title: "S", rows: [{ title: "Op 1", id: "1" }] }]
+                                })
+                            }]
                         }
                     }
                 }
                 break
 
             // ==========================================
-            // 4. Protocolo e Interacción Directa
+            // 5. OTROS (HSM, POLL, EVENT, ETC)
             // ==========================================
-            case "protocolo_total":
-                await sock.sendMessage(jid, { react: { text: "✅", key: m.key } })
-                const s = await sock.sendMessage(jid, { text: "Mensaje base" })
-                await Baileys.delay(1000)
-                await sock.sendMessage(jid, { edit: s.key, text: "Mensaje editado" })
-                await Baileys.delay(1000)
-                await sock.sendMessage(jid, { pin: s.key, type: 1 })
-                return
-
-            // ==========================================
-            // 5. Social, Media y Otros
-            // ==========================================
-            case "social_full":
+            case "encuesta":
                 await sock.sendMessage(jid, { poll: { name: "Test", values: ["A", "B"] } })
-                msgContent = {
-                    eventMessage: { name: "Evento Global", startTime: Math.floor(Date.now()/1000) },
-                    stickerPackMessage: { name: "Pack", stickers: [{ url: "https://raw.githubusercontent.com/al-e-devil/Baileys/master/Media/octopus.webp", fileSha256: Buffer.alloc(32), fileEncSha256: Buffer.alloc(32), mediaKey: Buffer.alloc(32), mimetype: "image/webp", height: 512, width: 512, directPath: "dummy", fileLength: 1000 }] },
-                    albumMessage: { expectedImageCount: 5 }
-                }
-                // Nota: Por limitaciones de proto, solo enviamos uno por caso si no es un relay complejo
-                break
-
-            case "vcard_full":
-                const vcard = 'BEGIN:VCARD\nVERSION:3.0\nFN:Baileys Team\nORG:OSS;\nTEL;type=CELL;waid=123:123\nEND:VCARD'
-                await sock.sendMessage(jid, { contacts: { displayName: 'Devs', contacts: [{ vcard }] } })
                 return
 
-            case "comercio_full":
+            case "airich_full":
                 msgContent = {
-                    productMessage: { product: { productImage: imageMessage, title: "Bot" }, businessOwnerJid: sock.user?.id },
-                    invoiceMessage: { note: "Pago", token: "T1", attachmentType: 1, attachmentMimetype: "application/pdf" }
+                    richResponseMessage: {
+                        messageType: 1,
+                        submessages: [
+                            { messageType: 2, messageText: "Tablas y Código IA" },
+                            { messageType: 4, tableMetadata: { title: "Test", rows: [{ items: ["A", "B"], isHeading: true }] } },
+                            { messageType: 5, codeMetadata: { codeLanguage: "js", codeBlocks: [{ codeContent: "console.log('hi')" }] } }
+                        ]
+                    }
                 }
                 break
 
-            case "util_full":
+            case "lottie":
+                const { stickerMessage } = await Baileys.prepareWAMessageMedia({ sticker: { url: "https://raw.githubusercontent.com/al-e-devil/Baileys/master/Media/octopus.webp" } }, { upload: sock.waUploadToServer })
+                if (stickerMessage) stickerMessage.isLottie = true
+                msgContent = { stickerMessage }
+                break
+
+            case "album":
+                msgContent = { albumMessage: { expectedImageCount: 2 } }
+                break
+
+            case "factura":
+                msgContent = { invoiceMessage: { note: "Factura", token: "T1", attachmentType: 1, attachmentMimetype: "application/pdf" } }
+                break
+
+            // ==========================================
+            // 6. PAGOS, LLAMADAS BROADCAST Y ESTADOS
+            // ==========================================
+            case "bcall":
                 msgContent = {
-                    locationMessage: { degreesLatitude: 0, degreesLongitude: 0, name: "GPS" },
-                    scheduledCallCreationMessage: { title: "Daily", callType: 1, scheduledTimestampMs: Date.now() + 60000 }
+                    bcallMessage: {
+                        sessionId: "BCALL_" + Date.now(),
+                        mediaType: 1, // AUDIO
+                        masterKey: Buffer.alloc(32),
+                        caption: "Llamada de transmisión"
+                    }
+                }
+                break
+
+            case "payment_invite":
+                msgContent = {
+                    paymentInviteMessage: {
+                        serviceType: 3, // UPI
+                        expiryTimestamp: Math.floor(Date.now() / 1000) + 86400
+                    }
+                }
+                break
+
+            case "request_phone":
+                msgContent = { requestPhoneNumberMessage: { contextInfo: {} } }
+                break
+
+            case "payment_request":
+                msgContent = {
+                    requestPaymentMessage: {
+                        currencyCodeIso4217: "USD",
+                        amount1000: 10000,
+                        requestFrom: "12345@s.whatsapp.net",
+                        expiryTimestamp: Math.floor(Date.now() / 1000) + 86400
+                    }
+                }
+                break
+
+            case "status_qa":
+                msgContent = {
+                    statusQuestionAnswerMessage: {
+                        key: m.key,
+                        text: "Respondiendo a tu pregunta en el estado..."
+                    }
+                }
+                break
+
+            case "status_sticker":
+                msgContent = {
+                    statusStickerInteractionMessage: {
+                        key: m.key,
+                        stickerKey: "STICKER_123",
+                        type: 1 // REACTION
+                    }
+                }
+                break
+
+            case "status_notify":
+                msgContent = {
+                    statusNotificationMessage: {
+                        responseMessageKey: m.key,
+                        originalMessageKey: m.key,
+                        type: 1 // STATUS_ADD_YOURS
+                    }
                 }
                 break
 
             default:
-                const menu = `*WHATSAPP ABSOLUTE TEST SUITE*
+                const menu = `*WHATSAPP ULTIMATE EXPERIMENTAL TEST*
 
-*Meta AI (AIRich):* airich_completo (Tabla, Código, Latex, Mapa, Grid)
-*Interactive:* interactive_full (Todos los botones nativos)
-*Carousel:* carousel_full (Tarjetas interactivas)
-*Templates:* template_moderno (Botones hidratados)
-*Protocolo:* protocolo_total (Reacción, Edit, Pin)
-*Social:* social_full (Poll, Event, Stickers)
-*Contacto:* vcard_full
-*Comercio:* comercio_full (Producto, Factura)
-*Util:* util_full (Ubicación, Llamada)`
+*Experimental (New):*
+- whiteboard (Collab drawing)
+- sheet (Advanced Bottom Sheet + Tap Target)
+- reels (IG Reels + Unified Response Data)
+- story (Group Story 5x Nested)
+
+*Interactive & Flow:*
+- carousel | botones | lista
+- airich_full (Tables/Code)
+- lottie (Animated Sticker)
+- album (Photo bundle)
+
+*Social & Commerce:*
+- encuesta | evento
+- producto | tienda | factura
+
+*Esoteric & Status (New):*
+- bcall (Broadcast Call)
+- payment_invite | payment_request
+- request_phone
+- status_qa | status_sticker | status_notify
+
+*Protocolo:*
+- reaccion | editar | borrar | fijar | mantener`
                 await sock.sendMessage(jid, { text: menu })
                 return
         }
 
         if (useGenerateWAMessage && msgContent) {
-            const msg = await Baileys.generateWAMessageFromContent(jid, { viewOnceMessage: { message: msgContent } }, options)
-            await sock.relayMessage(jid, msg.message, { messageId: msg.key.id })
+            const msg = await Baileys.generateWAMessageFromContent(jid, msgContent, options)
+            await sock.relayMessage(jid, msg.message, { messageId: msg.key.id, ...relayOptions })
         }
     }
 }
