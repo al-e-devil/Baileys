@@ -16,7 +16,6 @@ messages*.json
 node_modules
 output.csv
 Proxy
-test.ts
 TestData
 wa-logs*
 coverage
