@@ -127,6 +127,8 @@ export function makeLibSignalRepository(
 					case 'msg':
 						result = await session.decryptWhisperMessage(ciphertext)
 						break
+					default:
+						throw new Error(`Unknown ciphertext type: ${type}`)
 				}
 
 				return result
