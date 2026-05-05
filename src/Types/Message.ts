@@ -139,6 +139,10 @@ type Templatable = {
 type Interactiveable = {
 	/** add buttons to the message  */
 	interactiveButtons?: proto.Message.InteractiveMessage.NativeFlowMessage.NativeFlowButton[]
+	/** optional native flow params JSON */
+	nativeFlowMessageParamsJson?: string
+	/** optional native flow message version */
+	nativeFlowMessageVersion?: number
 	title?: string
 	subtitle?: string
 	media?: boolean
@@ -172,6 +176,7 @@ export type CarouselCard = {
 
 type Carouselable = {
 	carousel?: CarouselCard[]
+	carouselCardType?: proto.Message.InteractiveMessage.CarouselMessage.CarouselCardType
 }
 
 type Listable = {

@@ -975,33 +975,39 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			}
 
 			const interactive = getInteractiveMessage(message)
+			const shouldAddBiz =
+				!additionalNodes?.some(n => n.tag === 'biz') &&
+				[isJidGroup(jid), isPnUser(jid), isLidUser(jid), isHostedPnUser(jid), isHostedLidUser(jid)].includes(true)
 
-			if (!additionalNodes?.some(n => n.tag === 'biz') && [isJidGroup(jid), isPnUser(jid), isLidUser(jid)].includes(true)) {
-				let stanza: BinaryNode['content']
-				if (interactive) {
-					stanza = [
-						{
-							tag: 'interactive',
-							attrs: {
-								type: 'native_flow',
-								v: '1'
-							},
-							content: [{
+			if (shouldAddBiz && interactive) {
+				const attrs = getButtonArgs(message)
+				let interactiveNode: BinaryNode | undefined
+				if (attrs.type === 'native_flow') {
+					interactiveNode = {
+						tag: 'interactive',
+						attrs,
+						content: [
+							{
 								tag: 'native_flow',
 								attrs: {
 									v: '9',
 									name: 'mixed'
 								}
-							}]
-						}
-					]
+							}
+						]
+					}
+				} else if (attrs.type === 'method') {
+					interactiveNode = {
+						tag: 'interactive',
+						attrs
+					}
 				}
 
-				if (stanza) {
+				if (interactiveNode) {
 					binaryNodeContent.push({
 						tag: 'biz',
 						attrs: {},
-						content: stanza
+						content: [interactiveNode]
 					})
 				}
 			}

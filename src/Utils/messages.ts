@@ -922,10 +922,14 @@ export const generateWAMessageContent = async (
 		m = { listMessage }
 	} else if (hasNonNullishProperty(message, 'interactiveButtons')) {
 		const buttons = (message as any).interactiveButtons
+		const messageParamsJson =
+			(message as any).nativeFlowMessageParamsJson || (message as any).messageParamsJson
+		const messageVersion = (message as any).nativeFlowMessageVersion ?? 1
 		const interactiveMessage = proto.Message.InteractiveMessage.create({
 			nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
 				buttons: buttons,
-				messageVersion: 1,
+				messageVersion,
+				messageParamsJson
 			})
 		})
 
@@ -957,26 +961,44 @@ export const generateWAMessageContent = async (
 
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'carousel')) {
-		const carousel = (message as any).carousel as any[]
-		const carouselCardType = (message as any).carouselCardType || 1
+		const carousel = (message as any).carousel as CarouselCard[]
+		const carouselCardType = (message as any).carouselCardType ?? 1
 		const carouselCards = await Promise.all(carousel.map(async (card) => {
-			const header: any = { title: card.title || '', hasMediaAttachment: !!(card.image || card.video) }
-			if (card.image) {
-				const media = await prepareWAMessageMedia({ image: card.image }, options)
-				Object.assign(header, media)
-			} else if (card.video) {
-				const media = await prepareWAMessageMedia({ video: card.video }, options)
-				Object.assign(header, media)
+			const header: proto.Message.InteractiveMessage.IHeader = {
+				title: card.title || '',
+				subtitle: card.subtitle,
+				hasMediaAttachment: !!(card.image || card.video)
 			}
 
+			if (card.image) {
+				const media = await prepareWAMessageMedia({ image: card.image } as any, options)
+				header.imageMessage = media.imageMessage
+			} else if (card.video) {
+				const media = await prepareWAMessageMedia({ video: card.video } as any, options)
+				header.videoMessage = media.videoMessage
+			}
+
+			const bodyText = card.body || card.caption || ''
+			const footerText = card.footer || ''
+			const nativeFlowMessage = card.buttons?.length
+				? proto.Message.InteractiveMessage.NativeFlowMessage.create({
+						buttons: card.buttons,
+						messageVersion: 1,
+						messageParamsJson: card.templateId
+							? JSON.stringify({ from: 'apiv2', templateId: card.templateId })
+							: undefined
+					})
+				: undefined
+
+			const headerMessage = (header.title || header.subtitle || header.hasMediaAttachment)
+				? proto.Message.InteractiveMessage.Header.create(header)
+				: undefined
+
 			return proto.Message.InteractiveMessage.create({
-				header: proto.Message.InteractiveMessage.Header.create(header),
-				body: proto.Message.InteractiveMessage.Body.create({ text: card.body }),
-				footer: proto.Message.InteractiveMessage.Footer.create({ text: card.footer }),
-				nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-					buttons: card.buttons,
-					messageParamsJson: JSON.stringify({ from: "apiv2", templateId: card.templateId || "4194019344155670" })
-				})
+				header: headerMessage,
+				body: proto.Message.InteractiveMessage.Body.create({ text: bodyText }),
+				footer: footerText ? proto.Message.InteractiveMessage.Footer.create({ text: footerText }) : undefined,
+				nativeFlowMessage
 			})
 		}))
 
@@ -988,18 +1010,27 @@ export const generateWAMessageContent = async (
 			})
 		})
 
-		if ('text' in message) {
-			interactiveMessage.body = { text: (message as any).text }
-		} else if ('caption' in message) {
-			interactiveMessage.body = { text: (message as any).caption }
-		}
+		const bodyText = (message as any).text || (message as any).caption || ''
+		interactiveMessage.body = { text: bodyText }
 
 		if ('footer' in message && !!message.footer) {
 			interactiveMessage.footer = { text: (message as any).footer }
 		}
 
+		if ('title' in message && !!(message as any).title) {
+			interactiveMessage.header = {
+				title: (message as any).title,
+				subtitle: (message as any).subtitle,
+				hasMediaAttachment: false
+			}
+		}
+
 		if ('contextInfo' in message && !!message.contextInfo) {
 			interactiveMessage.contextInfo = message.contextInfo
+		}
+
+		if ('mentions' in message && !!message.mentions) {
+			interactiveMessage.contextInfo = { ...interactiveMessage.contextInfo, mentionedJid: message.mentions }
 		}
 
 		m = { interactiveMessage }
@@ -1151,6 +1182,152 @@ export const generateWAMessageContent = async (
 		m = { invoiceMessage }
 	} else {
 		m = await prepareWAMessageMedia(message, options)
+	}
+
+	const getMediaHeader = (msg: proto.IMessage) => {
+		if (msg.imageMessage) {
+			return { type: 'image', message: msg.imageMessage }
+		}
+		if (msg.videoMessage) {
+			return { type: 'video', message: msg.videoMessage }
+		}
+		if (msg.documentMessage) {
+			return { type: 'document', message: msg.documentMessage }
+		}
+		if (msg.locationMessage) {
+			return { type: 'location', message: msg.locationMessage }
+		}
+		return undefined
+	}
+
+	if (hasNonNullishProperty(message, 'buttons') && !m.buttonsMessage) {
+		const hasTitle = 'title' in message && !!(message as any).title
+		const buttonsMessage = proto.Message.ButtonsMessage.create({
+			buttons: (message.buttons as any[]).map(b => ({
+				...b,
+				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE
+			})),
+			contentText: (message as any).text || (message as any).caption || '',
+			headerType: proto.Message.ButtonsMessage.HeaderType.EMPTY
+		})
+
+		if (!hasTitle) {
+			const header = getMediaHeader(m)
+			if (header?.type === 'image') {
+				buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.IMAGE
+				buttonsMessage.imageMessage = header.message
+			} else if (header?.type === 'video') {
+				buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.VIDEO
+				buttonsMessage.videoMessage = header.message
+			} else if (header?.type === 'document') {
+				buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.DOCUMENT
+				buttonsMessage.documentMessage = header.message
+			} else if (header?.type === 'location') {
+				buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.LOCATION
+				buttonsMessage.locationMessage = header.message
+			}
+		}
+
+		if (hasTitle) {
+			buttonsMessage.text = (message as any).title
+			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.TEXT
+		}
+
+		if ('footer' in message && !!(message as any).footer) {
+			buttonsMessage.footerText = (message as any).footer
+		}
+
+		if ('contextInfo' in message && !!message.contextInfo) {
+			buttonsMessage.contextInfo = message.contextInfo
+		}
+
+		if ('mentions' in message && !!message.mentions) {
+			buttonsMessage.contextInfo = { ...buttonsMessage.contextInfo, mentionedJid: message.mentions }
+		}
+
+		m = { buttonsMessage }
+	} else if (hasNonNullishProperty(message, 'templateButtons') && !m.templateMessage) {
+		const templateMsg: proto.Message.TemplateMessage.IHydratedFourRowTemplate = {
+			hydratedButtons: message.templateButtons
+		}
+
+		if ('text' in message) {
+			templateMsg.hydratedContentText = (message as any).text
+		} else if ('caption' in message) {
+			templateMsg.hydratedContentText = (message as any).caption
+		}
+
+		if ('footer' in message && !!(message as any).footer) {
+			templateMsg.hydratedFooterText = (message as any).footer
+		}
+
+		const header = getMediaHeader(m)
+		if (header?.type === 'image') {
+			templateMsg.imageMessage = header.message
+		} else if (header?.type === 'video') {
+			templateMsg.videoMessage = header.message
+		} else if (header?.type === 'document') {
+			templateMsg.documentMessage = header.message
+		} else if (header?.type === 'location') {
+			templateMsg.locationMessage = header.message
+		}
+
+		m = {
+			templateMessage: {
+				fourRowTemplate: templateMsg,
+				hydratedTemplate: templateMsg
+			}
+		}
+	} else if (hasNonNullishProperty(message, 'interactiveButtons') && !m.interactiveMessage) {
+		const buttons = (message as any).interactiveButtons
+		const interactiveMessage = proto.Message.InteractiveMessage.create({
+			nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+				buttons: buttons,
+				messageVersion: 1
+			})
+		})
+
+		const bodyText = (message as any).text || (message as any).caption || ''
+		interactiveMessage.body = { text: bodyText }
+
+		const header = getMediaHeader(m)
+		const headerData: proto.Message.InteractiveMessage.IHeader = {}
+		if ('title' in message && !!(message as any).title) {
+			headerData.title = (message as any).title
+		}
+		if ('subtitle' in message && !!(message as any).subtitle) {
+			headerData.subtitle = (message as any).subtitle
+		}
+		if (header?.type === 'image') {
+			headerData.hasMediaAttachment = true
+			headerData.imageMessage = header.message
+		} else if (header?.type === 'video') {
+			headerData.hasMediaAttachment = true
+			headerData.videoMessage = header.message
+		} else if (header?.type === 'document') {
+			headerData.hasMediaAttachment = true
+			headerData.documentMessage = header.message
+		} else if (headerData.title || headerData.subtitle) {
+			headerData.hasMediaAttachment = false
+		}
+
+		if (Object.keys(headerData).length) {
+			interactiveMessage.header = proto.Message.InteractiveMessage.Header.create(headerData)
+		}
+
+		if ('footer' in message && !!(message as any).footer) {
+			interactiveMessage.footer = { text: (message as any).footer }
+		}
+
+		if ('contextInfo' in message && !!message.contextInfo) {
+			interactiveMessage.contextInfo = message.contextInfo
+		}
+
+		if ('mentions' in message && !!message.mentions) {
+			interactiveMessage.contextInfo = { ...interactiveMessage.contextInfo, mentionedJid: message.mentions }
+		}
+
+		m = { interactiveMessage }
 	}
 
 	const shouldWrapInteractive = !!m.interactiveMessage
