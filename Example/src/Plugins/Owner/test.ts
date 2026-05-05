@@ -9,7 +9,6 @@ export default {
         const args = m.body ? m.body.split(" ").slice(1) : []
         const type = args[0]?.toLowerCase() || "ayuda"
 
-        // Preparar medios base
         const { imageMessage } = await Baileys.prepareWAMessageMedia(
             { image: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg" } },
             { upload: sock.waUploadToServer }
@@ -21,9 +20,6 @@ export default {
         let options: any = { userJid: sock.user?.id, quoted: m }
 
         switch (type) {
-            // ==========================================
-            // 1. EXPERIMENTALES Y NATIVE FLOW AVANZADO
-            // ==========================================
             case "whiteboard":
                 msgContent = {
                     interactiveMessage: proto.Message.InteractiveMessage.create({
@@ -164,10 +160,6 @@ export default {
                     }
                 }
                 break
-
-            // ==========================================
-            // 3. TRUCOS DE PROTOCOLO (STORY 5X)
-            // ==========================================
             case "story":
                 let temp: any = {
                     groupStatusMessageV2: {
@@ -179,10 +171,6 @@ export default {
                 }
                 msgContent = temp;
                 break
-
-            // ==========================================
-            // 4. MENSAJES INTERACTIVOS BASE (NATIVE FLOW)
-            // ==========================================
             case "carousel":
                 msgContent = {
                     interactiveMessage: proto.Message.InteractiveMessage.create({
@@ -230,10 +218,6 @@ export default {
                     }
                 }
                 break
-
-            // ==========================================
-            // 5. OTROS (HSM, POLL, EVENT, ETC)
-            // ==========================================
             case "encuesta":
                 await sock.sendMessage(jid, { poll: { name: "Test", values: ["A", "B"] } })
                 return
@@ -264,10 +248,6 @@ export default {
             case "factura":
                 msgContent = { invoiceMessage: { note: "Factura", token: "T1", attachmentType: 1, attachmentMimetype: "application/pdf" } }
                 break
-
-            // ==========================================
-            // 6. PAGOS, LLAMADAS BROADCAST Y ESTADOS
-            // ==========================================
             case "bcall":
                 msgContent = {
                     bcallMessage: {
