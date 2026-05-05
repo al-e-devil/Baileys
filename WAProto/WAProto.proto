@@ -1101,10 +1101,10 @@ message ChatRowOpaqueData {
 }
 
 message Citation {
-    required string title = 1;
-    required string subtitle = 2;
-    required string cmsId = 3;
-    required string imageUrl = 4;
+    optional string title = 1;
+    optional string subtitle = 2;
+    optional string cmsId = 3;
+    optional string imageUrl = 4;
 }
 
 message ClientPairingProps {
