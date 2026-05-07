@@ -42,6 +42,7 @@ import {
 	getRawMediaUploadData,
 	type MediaDownloadOptions
 } from './messages-media'
+import { ERR_MEDIA_UNKNOWN_TYPE } from './errors'
 import { shouldIncludeReportingToken } from './reporting-utils'
 
 type ExtractByKey<T, K extends PropertyKey> = T extends any ? (K extends keyof T ? T : never) : never
@@ -106,37 +107,35 @@ export const getContentType = (content: proto.IMessage | undefined) => {
  * @param content
  * @returns
  */
+/**
+ * Normalizes ephemeral, view-once, and wrapper messages to their inner content.
+ * Iterates up to 5 levels deep to unwrap nested message types.
+ * @param content - The raw WAMessageContent to normalize.
+ * @returns The innermost non-wrapper content, or `undefined` if input is empty.
+ */
 export const normalizeMessageContent = (content: WAMessageContent | null | undefined): WAMessageContent | undefined => {
-	if (!content) {
-		return undefined
-	}
+	if (!content) return undefined
 
-	// set max iterations to prevent an infinite loop
+	/** Unwraps one layer of a known wrapper message type */
+	const getFutureProofMessage = (message: typeof content) =>
+		message?.ephemeralMessage ??
+		message?.viewOnceMessage ??
+		message?.documentWithCaptionMessage ??
+		message?.viewOnceMessageV2 ??
+		message?.viewOnceMessageV2Extension ??
+		message?.editedMessage ??
+		message?.associatedChildMessage ??
+		message?.groupStatusMessage ??
+		message?.groupStatusMessageV2
+
+	// Unwrap up to 5 levels to prevent infinite loops on malformed protos
 	for (let i = 0; i < 5; i++) {
 		const inner = getFutureProofMessage(content)
-		if (!inner) {
-			break
-		}
-
+		if (!inner) break
 		content = inner.message
 	}
 
-
 	return content!
-
-	function getFutureProofMessage(message: typeof content) {
-		return (
-			message?.ephemeralMessage ||
-			message?.viewOnceMessage ||
-			message?.documentWithCaptionMessage ||
-			message?.viewOnceMessageV2 ||
-			message?.viewOnceMessageV2Extension ||
-			message?.editedMessage ||
-			message?.associatedChildMessage ||
-			message?.groupStatusMessage ||
-			message?.groupStatusMessageV2
-		)
-	}
 }
 
 /**
@@ -199,7 +198,10 @@ export const prepareWAMessageMedia = async (
 	}
 
 	if (!mediaType) {
-		throw new Boom('Invalid media type', { statusCode: 400 })
+		throw new Boom('Invalid media type', {
+			statusCode: 400,
+			data: { code: MEDIA_ERROR_CODES.ERR_MEDIA_UNKNOWN_TYPE }
+		})
 	}
 
 	const uploadData: MediaUploadData = {
@@ -456,10 +458,7 @@ function hasOptionalProperty<T, K extends PropertyKey>(obj: T, key: K): obj is W
 	return typeof obj === 'object' && obj !== null && key in obj && (obj as any)[key] !== null
 }
 
-export const generateWAMessageContent = async (
-	message: AnyMessageContent,
-	options: MessageGenerationOptions
-) => {
+export const generateWAMessageContent = async (message: AnyMessageContent, options: MessageGenerationOptions) => {
 	// Cross-platform externalAdReply thumbnail handling
 	const fixupExternalAdReplyThumb = async (externalAdReply: any) => {
 		const thumbUrl = externalAdReply.originalImageUrl || externalAdReply.thumbnailUrl
@@ -471,7 +470,9 @@ export const generateWAMessageContent = async (
 				const { buffer } = await extractImageThumb(stream as any, 512)
 				externalAdReply.thumbnail = buffer
 			} catch (error: any) {
-				options.logger?.warn('Failed to generate externalAdReply thumbnail for cross-platform compatibility: ' + error.message)
+				options.logger?.warn(
+					'Failed to generate externalAdReply thumbnail for cross-platform compatibility: ' + error.message
+				)
 			}
 		}
 		if (externalAdReply.renderLargerThumbnail === undefined) {
@@ -577,7 +578,12 @@ export const generateWAMessageContent = async (
 		}
 	} else if (hasNonNullishProperty(message, 'pin')) {
 		const pinData = typeof message.pin === 'object' ? (message.pin as any) : { key: message.pin }
-		const pinType = pinData.type !== undefined ? pinData.type : (message.type !== undefined ? (message.type as any) : WAProto.Message.PinInChatMessage.Type.PIN_FOR_ALL)
+		const pinType =
+			pinData.type !== undefined
+				? pinData.type
+				: message.type !== undefined
+					? (message.type as any)
+					: WAProto.Message.PinInChatMessage.Type.PIN_FOR_ALL
 
 		m.pinInChatMessage = {
 			key: pinData.key,
@@ -670,7 +676,7 @@ export const generateWAMessageContent = async (
 			sellerJid: (message.order as any).sellerJid,
 			token: (message.order as any).token,
 			totalAmount1000: (message.order as any).amount,
-			totalCurrencyCode: (message.order as any).currency,
+			totalCurrencyCode: (message.order as any).currency
 		})
 	} else if (hasNonNullishProperty(message, 'listReply')) {
 		m.listResponseMessage = { ...message.listReply }
@@ -706,7 +712,7 @@ export const generateWAMessageContent = async (
 		const pollCreation = {
 			name: poll.name,
 			selectableOptionsCount: poll.selectableCount,
-			options: poll.values.map((optionName: string) => ({ optionName })),
+			options: poll.values.map((optionName: string) => ({ optionName }))
 		}
 
 		if (poll.toAnnouncementGroup) {
@@ -719,7 +725,12 @@ export const generateWAMessageContent = async (
 	} else if (hasNonNullishProperty(message, 'requestPayment')) {
 		const reqPayment = message.requestPayment as any
 		const notes = reqPayment.sticker
-			? { stickerMessage: { ...(await prepareWAMessageMedia({ sticker: reqPayment.sticker }, options)).stickerMessage, contextInfo: reqPayment.contextInfo } }
+			? {
+					stickerMessage: {
+						...(await prepareWAMessageMedia({ sticker: reqPayment.sticker }, options)).stickerMessage,
+						contextInfo: reqPayment.contextInfo
+					}
+				}
 			: { extendedTextMessage: { text: reqPayment.note || '', contextInfo: reqPayment.contextInfo } }
 
 		m.requestPaymentMessage = proto.Message.RequestPaymentMessage.create({
@@ -731,12 +742,11 @@ export const generateWAMessageContent = async (
 			background: reqPayment.background,
 			...reqPayment
 		})
-
 	} else if (hasNonNullishProperty(message, 'album')) {
 		const album = message.album as any[]
 		m.albumMessage = {
 			expectedImageCount: album.filter(i => i.image).length,
-			expectedVideoCount: album.filter(i => i.video).length,
+			expectedVideoCount: album.filter(i => i.video).length
 		}
 	} else if (hasNonNullishProperty(message, 'pollResult')) {
 		if (!Array.isArray(message.pollResult.votes)) {
@@ -769,15 +779,15 @@ export const generateWAMessageContent = async (
 			expectedVideoCount: message.album.expectedVideoCount
 		}
 	} else if (hasNonNullishProperty(message, 'inviteAdmin')) {
-		m.newsletterAdminInviteMessage = {};
-		m.newsletterAdminInviteMessage.inviteExpiration = message.inviteAdmin.inviteExpiration;
-		m.newsletterAdminInviteMessage.caption = message.inviteAdmin.text;
-		m.newsletterAdminInviteMessage.newsletterJid = message.inviteAdmin.jid;
-		m.newsletterAdminInviteMessage.newsletterName = message.inviteAdmin.subject;
-		m.newsletterAdminInviteMessage.jpegThumbnail = message.inviteAdmin.thumbnail;
+		m.newsletterAdminInviteMessage = {}
+		m.newsletterAdminInviteMessage.inviteExpiration = message.inviteAdmin.inviteExpiration
+		m.newsletterAdminInviteMessage.caption = message.inviteAdmin.text
+		m.newsletterAdminInviteMessage.newsletterJid = message.inviteAdmin.jid
+		m.newsletterAdminInviteMessage.newsletterName = message.inviteAdmin.subject
+		m.newsletterAdminInviteMessage.jpegThumbnail = message.inviteAdmin.thumbnail
 	} else if (hasNonNullishProperty(message, 'requestPayment')) {
-		const sticker = message.requestPayment.sticker ?
-			await prepareWAMessageMedia({ sticker: message.requestPayment.sticker } as any, options)
+		const sticker = message.requestPayment.sticker
+			? await prepareWAMessageMedia({ sticker: message.requestPayment.sticker } as any, options)
 			: null
 
 		let notes: any = {}
@@ -789,7 +799,7 @@ export const generateWAMessageContent = async (
 						stanzaId: options.quoted?.key?.id,
 						participant: options.quoted?.key?.participant,
 						quotedMessage: options.quoted?.message,
-						...message.requestPayment.contextInfo,
+						...message.requestPayment.contextInfo
 					}
 				}
 			}
@@ -801,7 +811,7 @@ export const generateWAMessageContent = async (
 						stanzaId: options.quoted?.key?.id,
 						participant: options.quoted?.key?.participant,
 						quotedMessage: options.quoted?.message,
-						...message.requestPayment.contextInfo,
+						...message.requestPayment.contextInfo
 					}
 				}
 			}
@@ -813,7 +823,7 @@ export const generateWAMessageContent = async (
 			currencyCodeIso4217: message.requestPayment.currency,
 			requestFrom: message.requestPayment.from,
 			noteMessage: { ...notes },
-			background: (message.requestPayment as any).background || null,
+			background: (message.requestPayment as any).background || null
 		}
 	} else if (hasNonNullishProperty(message, 'collection')) {
 		const interactiveMessage: proto.Message.IInteractiveMessage = {
@@ -832,9 +842,8 @@ export const generateWAMessageContent = async (
 			interactiveMessage.header = {
 				title: (message as any).title,
 				subtitle: (message as any).subtitle,
-				hasMediaAttachment: !!m,
+				hasMediaAttachment: !!m
 			}
-
 		} else if ('caption' in message) {
 			interactiveMessage.body = {
 				text: (message as any).caption
@@ -843,7 +852,7 @@ export const generateWAMessageContent = async (
 			interactiveMessage.header = {
 				title: (message as any).title,
 				subtitle: (message as any).subtitle,
-				hasMediaAttachment: !!m,
+				hasMediaAttachment: !!m
 			}
 		}
 
@@ -922,8 +931,7 @@ export const generateWAMessageContent = async (
 		m = { listMessage }
 	} else if (hasNonNullishProperty(message, 'interactiveButtons')) {
 		const buttons = (message as any).interactiveButtons
-		const messageParamsJson =
-			(message as any).nativeFlowMessageParamsJson || (message as any).messageParamsJson
+		const messageParamsJson = (message as any).nativeFlowMessageParamsJson || (message as any).messageParamsJson
 		const messageVersion = (message as any).nativeFlowMessageVersion ?? 1
 		const interactiveMessage = proto.Message.InteractiveMessage.create({
 			nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
@@ -963,44 +971,47 @@ export const generateWAMessageContent = async (
 	} else if (hasNonNullishProperty(message, 'carousel')) {
 		const carousel = (message as any).carousel as CarouselCard[]
 		const carouselCardType = (message as any).carouselCardType ?? 1
-		const carouselCards = await Promise.all(carousel.map(async (card) => {
-			const header: proto.Message.InteractiveMessage.IHeader = {
-				title: card.title || '',
-				subtitle: card.subtitle,
-				hasMediaAttachment: !!(card.image || card.video)
-			}
+		const carouselCards = await Promise.all(
+			carousel.map(async card => {
+				const header: proto.Message.InteractiveMessage.IHeader = {
+					title: card.title || '',
+					subtitle: card.subtitle,
+					hasMediaAttachment: !!(card.image || card.video)
+				}
 
-			if (card.image) {
-				const media = await prepareWAMessageMedia({ image: card.image } as any, options)
-				header.imageMessage = media.imageMessage
-			} else if (card.video) {
-				const media = await prepareWAMessageMedia({ video: card.video } as any, options)
-				header.videoMessage = media.videoMessage
-			}
+				if (card.image) {
+					const media = await prepareWAMessageMedia({ image: card.image } as any, options)
+					header.imageMessage = media.imageMessage
+				} else if (card.video) {
+					const media = await prepareWAMessageMedia({ video: card.video } as any, options)
+					header.videoMessage = media.videoMessage
+				}
 
-			const bodyText = card.body || card.caption || ''
-			const footerText = card.footer || ''
-			const nativeFlowMessage = card.buttons?.length
-				? proto.Message.InteractiveMessage.NativeFlowMessage.create({
-						buttons: card.buttons,
-						messageVersion: 1,
-						messageParamsJson: card.templateId
-							? JSON.stringify({ from: 'apiv2', templateId: card.templateId })
-							: undefined
-					})
-				: undefined
+				const bodyText = card.body || card.caption || ''
+				const footerText = card.footer || ''
+				const nativeFlowMessage = card.buttons?.length
+					? proto.Message.InteractiveMessage.NativeFlowMessage.create({
+							buttons: card.buttons,
+							messageVersion: 1,
+							messageParamsJson: card.templateId
+								? JSON.stringify({ from: 'apiv2', templateId: card.templateId })
+								: undefined
+						})
+					: undefined
 
-			const headerMessage = (header.title || header.subtitle || header.hasMediaAttachment)
-				? proto.Message.InteractiveMessage.Header.create(header)
-				: undefined
+				const headerMessage =
+					header.title || header.subtitle || header.hasMediaAttachment
+						? proto.Message.InteractiveMessage.Header.create(header)
+						: undefined
 
-			return proto.Message.InteractiveMessage.create({
-				header: headerMessage,
-				body: proto.Message.InteractiveMessage.Body.create({ text: bodyText }),
-				footer: footerText ? proto.Message.InteractiveMessage.Footer.create({ text: footerText }) : undefined,
-				nativeFlowMessage
+				return proto.Message.InteractiveMessage.create({
+					header: headerMessage,
+					body: proto.Message.InteractiveMessage.Body.create({ text: bodyText }),
+					footer: footerText ? proto.Message.InteractiveMessage.Footer.create({ text: footerText }) : undefined,
+					nativeFlowMessage
+				})
 			})
-		}))
+		)
 
 		const interactiveMessage = proto.Message.InteractiveMessage.create({
 			carouselMessage: proto.Message.InteractiveMessage.CarouselMessage.create({
@@ -1075,17 +1086,19 @@ export const generateWAMessageContent = async (
 		}
 
 		if (pack.stickers?.length) {
-			stickerPackMessage.stickers = await Promise.all(pack.stickers.map(async (s: any) => {
-				const media = await prepareWAMessageMedia({ sticker: s.sticker }, options)
-				return {
-					fileName: s.fileName || `sticker_${Date.now()}.webp`,
-					isAnimated: s.isAnimated || false,
-					emojis: s.emojis || [],
-					accessibilityLabel: s.accessibilityLabel,
-					isLottie: s.isLottie || false,
-					mimetype: s.mimetype || media.stickerMessage!.mimetype
-				}
-			}))
+			stickerPackMessage.stickers = await Promise.all(
+				pack.stickers.map(async (s: any) => {
+					const media = await prepareWAMessageMedia({ sticker: s.sticker }, options)
+					return {
+						fileName: s.fileName || `sticker_${Date.now()}.webp`,
+						isAnimated: s.isAnimated || false,
+						emojis: s.emojis || [],
+						accessibilityLabel: s.accessibilityLabel,
+						isLottie: s.isLottie || false,
+						mimetype: s.mimetype || media.stickerMessage!.mimetype
+					}
+				})
+			)
 			stickerPackMessage.stickerPackSize = stickerPackMessage.stickers.length
 		}
 
@@ -1116,11 +1129,13 @@ export const generateWAMessageContent = async (
 		const res = message.interactiveResponse as any
 		m.interactiveResponseMessage = proto.Message.InteractiveResponseMessage.create({
 			body: { text: res.body?.text || '', format: res.body?.format || 0 },
-			nativeFlowResponseMessage: res.nativeFlowResponse ? {
-				name: res.nativeFlowResponse.name,
-				paramsJson: res.nativeFlowResponse.paramsJson,
-				version: res.nativeFlowResponse.version || 1
-			} : undefined,
+			nativeFlowResponseMessage: res.nativeFlowResponse
+				? {
+						name: res.nativeFlowResponse.name,
+						paramsJson: res.nativeFlowResponse.paramsJson,
+						version: res.nativeFlowResponse.version || 1
+					}
+				: undefined,
 			contextInfo: res.contextInfo
 		})
 	} else if (hasNonNullishProperty(message, 'call')) {
@@ -1153,7 +1168,11 @@ export const generateWAMessageContent = async (
 		}
 
 		if ('title' in message && !!message.title) {
-			interactiveMessage.header = { title: (message as any).title, subtitle: (message as any).subtitle, hasMediaAttachment: false }
+			interactiveMessage.header = {
+				title: (message as any).title,
+				subtitle: (message as any).subtitle,
+				hasMediaAttachment: false
+			}
 		}
 
 		if ('contextInfo' in message && !!message.contextInfo) {

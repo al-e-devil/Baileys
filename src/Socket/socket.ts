@@ -54,6 +54,7 @@ import {
 import { BinaryInfo } from '../WAM/BinaryInfo.js'
 import { USyncQuery, USyncUser } from '../WAUSync/'
 import { WebSocketClient } from './Client'
+import { ERR_PROTO_ENCODE_FRAME, ERR_PROTO_HANDSHAKE, ERR_WS_CLOSED, ERR_WS_KEEPALIVE } from '../Utils/errors'
 
 /**
  * Connects to WA servers and performs:
@@ -128,15 +129,28 @@ export const makeSocket = (config: SocketConfig) => {
 	/** send a raw buffer */
 	const sendRawMessage = async (data: Uint8Array | Buffer) => {
 		if (!ws.isOpen) {
-			throw new Boom('Connection Closed', { statusCode: DisconnectReason.connectionClosed })
+			throw new Boom('Connection Closed', {
+				statusCode: DisconnectReason.connectionClosed,
+				data: { code: ERR_WS_CLOSED }
+			})
 		}
 
-		const bytes = noise.encodeFrame(data)
+		let bytes: Buffer
+		try {
+			bytes = noise.encodeFrame(data)
+		} catch (encErr: any) {
+			throw new Boom(`Frame encoding failed: ${encErr?.message}`, {
+				statusCode: 500,
+				data: { code: ERR_PROTO_ENCODE_FRAME, cause: encErr }
+			})
+		}
+
 		await promiseTimeout<void>(connectTimeoutMs, async (resolve, reject) => {
 			try {
 				await sendPromise.call(ws, bytes)
 				resolve()
 			} catch (error) {
+				logger.warn({ err: error }, 'send raw message failed')
 				reject(error)
 			}
 		})
@@ -414,44 +428,53 @@ export const makeSocket = (config: SocketConfig) => {
 		return result
 	}
 
-	/** connection handshake */
+	/** connection handshake — implements the full WA Noise_XX handshake sequence */
 	const validateConnection = async () => {
-		let helloMsg: proto.IHandshakeMessage = {
-			clientHello: { ephemeral: ephemeralKeyPair.public }
+		try {
+			let helloMsg: proto.IHandshakeMessage = {
+				clientHello: { ephemeral: ephemeralKeyPair.public }
+			}
+			helloMsg = proto.HandshakeMessage.fromObject(helloMsg)
+
+			logger.info({ browser, helloMsg }, 'connected to WA')
+
+			const init = proto.HandshakeMessage.encode(helloMsg).finish()
+
+			const result = await awaitNextMessage<Uint8Array>(init)
+			const handshake = proto.HandshakeMessage.decode(result)
+
+			logger.trace({ handshake }, 'handshake recv from WA')
+
+			const keyEnc = noise.processHandshake(handshake, creds.noiseKey)
+
+			let node: proto.IClientPayload
+			if (!creds.me) {
+				node = generateRegistrationNode(creds, config)
+				logger.info({ node }, 'not logged in, attempting registration...')
+			} else {
+				node = generateLoginNode(creds.me.id, config)
+				logger.info({ node }, 'logging in...')
+			}
+
+			const payloadEnc = noise.encrypt(proto.ClientPayload.encode(node).finish())
+			await sendRawMessage(
+				proto.HandshakeMessage.encode({
+					clientFinish: {
+						static: keyEnc,
+						payload: payloadEnc
+					}
+				}).finish()
+			)
+			await noise.finishInit()
+			startKeepAliveRequest()
+		} catch (err: any) {
+			const isBoom = err instanceof Boom
+			if (isBoom) throw err
+			throw new Boom(`Handshake failed: ${err?.message}`, {
+				statusCode: 503,
+				data: { code: ERR_PROTO_HANDSHAKE, cause: err }
+			})
 		}
-		helloMsg = proto.HandshakeMessage.fromObject(helloMsg)
-
-		logger.info({ browser, helloMsg }, 'connected to WA')
-
-		const init = proto.HandshakeMessage.encode(helloMsg).finish()
-
-		const result = await awaitNextMessage<Uint8Array>(init)
-		const handshake = proto.HandshakeMessage.decode(result)
-
-		logger.trace({ handshake }, 'handshake recv from WA')
-
-		const keyEnc = noise.processHandshake(handshake, creds.noiseKey)
-
-		let node: proto.IClientPayload
-		if (!creds.me) {
-			node = generateRegistrationNode(creds, config)
-			logger.info({ node }, 'not logged in, attempting registration...')
-		} else {
-			node = generateLoginNode(creds.me.id, config)
-			logger.info({ node }, 'logging in...')
-		}
-
-		const payloadEnc = noise.encrypt(proto.ClientPayload.encode(node).finish())
-		await sendRawMessage(
-			proto.HandshakeMessage.encode({
-				clientFinish: {
-					static: keyEnc,
-					payload: payloadEnc
-				}
-			}).finish()
-		)
-		await noise.finishInit()
-		startKeepAliveRequest()
 	}
 
 	const getAvailablePreKeysOnServer = async () => {
@@ -701,7 +724,7 @@ export const makeSocket = (config: SocketConfig) => {
 					},
 					content: [{ tag: 'ping', attrs: {} }]
 				}).catch(err => {
-					logger.error({ trace: err.stack }, 'error in sending keep alive')
+					logger.error({ err, code: ERR_WS_KEEPALIVE }, 'error in sending keep alive')
 				})
 			} else {
 				logger.warn('keep alive called when WS not open')

@@ -26,6 +26,7 @@ import type {
 } from '../Types'
 import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildBuffer, jidNormalizedUser } from '../WABinary'
 import { aesDecryptGCM, aesEncryptGCM, hkdf } from './crypto'
+import { ERR_MEDIA_DOWNLOAD_FAILED, ERR_MEDIA_UPLOAD_FAILED } from './errors'
 import { generateMessageIDV2 } from './generics'
 import type { ILogger } from './logger'
 
@@ -523,7 +524,10 @@ export const downloadContentFromMessage = async (
 	const isValidMediaUrl = url?.startsWith('https://mmg.whatsapp.net/')
 	const downloadUrl = isValidMediaUrl ? url : getUrlFromDirectPath(directPath!)
 	if (!downloadUrl) {
-		throw new Boom('No valid media URL or directPath present in message', { statusCode: 400 })
+		throw new Boom('No valid media URL or directPath present in message', {
+			statusCode: 400,
+			data: { code: ERR_MEDIA_DOWNLOAD_FAILED }
+		})
 	}
 
 	const keys = await getMediaKeys(mediaKey, type)
@@ -874,7 +878,10 @@ export const getWAUploadToServer = (
 		}
 
 		if (!urls) {
-			throw new Boom('Media upload failed on all hosts', { statusCode: 500 })
+			throw new Boom('Media upload failed on all hosts', {
+				statusCode: 500,
+				data: { code: ERR_MEDIA_UPLOAD_FAILED }
+			})
 		}
 
 		return urls

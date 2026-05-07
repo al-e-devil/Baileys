@@ -1,3 +1,4 @@
+export * from './errors'
 export * from './generics'
 export * from './decode-wa-message'
 export * from './messages'

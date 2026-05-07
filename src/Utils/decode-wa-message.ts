@@ -16,9 +16,15 @@ import {
 	isPnUser
 	//	transferDevice
 } from '../WABinary'
+import { ERR_PROTO_DECRYPT, ERR_PROTO_SKEY_DIST } from './errors'
 import { unpadRandomMax16 } from './generics'
 import type { ILogger } from './logger'
 
+/**
+ * Resolves the JID that should be used for Signal decryption.
+ * LID-addressed messages use the LID directly; PN-addressed messages are
+ * looked up in the LID mapping store and fall back to the PN if not found.
+ */
 export const getDecryptionJid = async (sender: string, repository: SignalRepositoryWithLIDStore): Promise<string> => {
 	if (isLidUser(sender) || isHostedLidUser(sender)) {
 		return sender
@@ -248,6 +254,14 @@ export function decodeMessageNode(stanza: BinaryNode, meId: string, meLid: strin
 	}
 }
 
+/**
+ * Prepares a decoded message stanza for async decryption.
+ * Returns the full message shell and a `decrypt()` function that, when called,
+ * iterates over all `<enc>` children, decrypts each ciphertext with the Signal
+ * protocol, and populates `fullMessage.message`.
+ *
+ * @throws {Boom} if the stanza is structurally invalid (missing id/from/participant)
+ */
 export const decryptMessageNode = (
 	stanza: BinaryNode,
 	meId: string,
@@ -335,7 +349,10 @@ export const decryptMessageNode = (
 									item: msg.senderKeyDistributionMessage
 								})
 							} catch (err) {
-								logger.error({ key: fullMessage.key, err }, 'failed to process sender key distribution message')
+								logger.error(
+									{ key: fullMessage.key, err, code: PROTO_ERROR_CODES.ERR_PROTO_SKEY_DIST },
+									'failed to process sender key distribution message'
+								)
 							}
 						}
 
@@ -345,16 +362,18 @@ export const decryptMessageNode = (
 							fullMessage.message = msg
 						}
 					} catch (err: any) {
-						const errorContext = {
-							key: fullMessage.key,
-							err,
-							messageType: tag === 'plaintext' ? 'plaintext' : attrs.type,
-							sender,
-							author,
-							isSessionRecordError: isSessionRecordError(err)
-						}
-
-						logger.error(errorContext, 'failed to decrypt message')
+						logger.error(
+							{
+								key: fullMessage.key,
+								err,
+								code: PROTO_ERROR_CODES.ERR_PROTO_DECRYPT,
+								messageType: tag === 'plaintext' ? 'plaintext' : attrs.type,
+								sender,
+								author,
+								isSessionRecordError: isSessionRecordError(err)
+							},
+							'failed to decrypt message'
+						)
 
 						fullMessage.messageStubType = proto.WebMessageInfo.StubType.CIPHERTEXT
 						fullMessage.messageStubParameters = [err.message.toString()]
