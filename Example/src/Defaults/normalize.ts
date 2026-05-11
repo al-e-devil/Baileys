@@ -1,4 +1,4 @@
-import { jidNormalizedUser, proto, getContentType, extractMessageContent, normalizeMessageContent } from "../../../src";
+import { jidNormalizedUser, proto, getContentType, extractMessageContent, normalizeMessageContent, downloadMediaMessage } from "../../../src";
 
 import { Auralix } from "./core";
 import config from "../config"
@@ -50,7 +50,12 @@ export async function Sms(sock: Auralix, m: any): Promise<MsgCtx | null> {
 
         m.delete = () => sock.sendMessage(m.from, { delete: m.key })
         m.react = (emoji: string) => sock.sendMessage(m.from, { react: { text: emoji, key: m.key } })
-        m.download = () => (sock as any).downloadMediaMessage(m.message[m.type], m.type.replace('Message', ''))
+        m.download = () => downloadMediaMessage(
+            m,
+            'buffer',
+            {},
+            { logger: undefined, reuploadRequest: sock.updateMediaMessage }
+        )
 
         const ctxInfo = m.message?.[m.type]?.contextInfo
         m.quoted = ctxInfo && ctxInfo.quotedMessage
@@ -92,7 +97,12 @@ export async function Sms(sock: Auralix, m: any): Promise<MsgCtx | null> {
 
             m.quoted.delete = () => sock.sendMessage(m.from, { delete: m.quoted.key })
             m.quoted.react = (emoji: string) => sock.sendMessage(m.from, { react: { text: emoji, key: m.quoted.key } })
-            m.quoted.download = () => (sock as any).downloadMediaMessage(m.quoted.message[m.quoted.type], m.quoted.type.replace('Message', ''))
+            m.quoted.download = () => downloadMediaMessage(
+                m.quoted,
+                'buffer',
+                {},
+                { logger: undefined, reuploadRequest: sock.updateMediaMessage }
+            )
         }
     }
 

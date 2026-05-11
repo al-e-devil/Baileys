@@ -163,7 +163,7 @@ export default {
             case "story":
                 let temp: any = {
                     groupStatusMessageV2: {
-                        message: { conversation: "¡Este es un estado de grupo (Story) forzado!" }
+                        message: { conversation: "puta" }
                     }
                 };
                 for (let i = 0; i < 5; i++) {

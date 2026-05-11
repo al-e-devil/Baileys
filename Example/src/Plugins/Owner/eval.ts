@@ -7,7 +7,7 @@ const __dirname = import.meta.dirname;
 import syntaxErr from "syntax-error";
 
 
-import * as Baileys from "../../../src"
+import * as Baileys from "../../../../src"
 import { proto } from "../../../../WAProto"
 import config from "../../config";
 

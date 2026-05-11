@@ -12,7 +12,6 @@ import Request from "./Scraper/Request";
 import sqlite from "./Defaults/sqlite";
 import config from "./config";
 
-
 const start = async (retries = 0, pairing = true): Promise<void> => {
     const DEFAULT_CACHE_NAME = "open"
     const session = new Map<string, ReturnType<typeof Sock>>()
@@ -119,7 +118,6 @@ const start = async (retries = 0, pairing = true): Promise<void> => {
 
                 const args = {
                     Baileys,
-                    proto: Baileys.proto,
                     sock: auralix,
                     m,
                     db,
